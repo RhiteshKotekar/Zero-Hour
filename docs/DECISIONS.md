@@ -20,11 +20,15 @@ These lightweight ADRs establish the initial guardrails. Add a dated decision ra
 
 **Why:** CP-SAT gives a credible constrained optimiser; the fallback keeps demonstrations operational under infeasibility, unavailable solver dependencies, or strict time limits without hiding constraint violations.
 
+**Reaffirmed by D022 (2026-11-14):** CP-SAT is the allocator for the hackathon MVP and for Experiments A–C. A neural allocator may be added later, only as an optional, local-only comparison baseline. It does not replace CP-SAT or greedy.
+
 ## D004 — Separate signed claims from validated outcomes
 
 **Decision:** `AgentReport` is never a learner input. ACP produces `ValidationDecision`; only `VALID` decisions can yield a protected `LearningEvent`.
 
 **Why:** Digital signatures authenticate origin but cannot prove report truth. The separation makes Experiment 2 meaningful and testable.
+
+**Extended by D026 (2026-11-14):** if the deferred neural baseline is ever enabled, the same separation applies to its training data and model checkpoints.
 
 ## D005 — Persist audit events locally and append-only
 
@@ -138,3 +142,98 @@ These lightweight ADRs establish the initial guardrails. Add a dated decision ra
 **Decision:** Coordination overhead `H` = graph-derived handoff cost (`h0 + h1·hops` per cross-agent dependency, D012) **plus** `link_cost` × number of undirected coordination links the topology maintains (`config/topology_costs.yaml`, default 0.25). The same rule applies to every topology. `H` is normalised by `max_coordination_cost` (every dependency at `max_path_hops` plus a full mesh).
 
 **Why:** With hop cost alone, distributed (1-hop direct links) dominates whenever its degree cap does not bind, and functional-cell can never beat hierarchical on the judge mission, so the bandit has nothing context-dependent to learn. A uniform link-maintenance cost is the standard communication-overhead trade-off (more links = more overhead) and is not a per-topology bonus. It must be included in the §12.9 topology-cost sensitivity check and disclosed in the results.
+
+## D022 — Neural allocator is a deferred, optional, local-only comparison baseline (2026-11-14)
+
+**Decision:**
+
+- **Scope.** The hackathon MVP keeps CP-SAT, with the deterministic greedy fallback, as its only allocator (D003). After the hackathon, an optional neural constructive allocator may be added as a **comparison baseline**, following Luttmann & Xie (ICAPS 2024); see [PAPER_ALIGNMENT.md](PAPER_ALIGNMENT.md). It would be a heterogeneous-graph attention encoder (HAM) with a hierarchical decoder, trained with Pa-POMO, in a `samg.nco` package behind the existing `allocation.allocate()` contract as `SolverName.NEURAL_HAM`.
+- **Where it runs.** Only on one developer's laptop, which has an Intel Arc XPU. No MVP test, gate, demo or experiment depends on it.
+- **Out of scope for the hackathon.** The hackathon deliverable does not contain it, so it needs **no exception** to brief §2.2 or §14.1 rule 9. Multi-agent RL (including the authors' MAHAM follow-up), HMMs, LLMs and the rest of §2.2 remain out of scope for later work too.
+
+**Why:** The paper's method fits SAMG's allocation sub-problem: a composite (task, agent) action, one capability offered by several agents, and capacity limits. It is worth comparing against CP-SAT. But it adds training cost and a new learning component, which the 24-hour brief forbids, and at SAMG's mission sizes the paper predicts parity, not improvement. The team decided that it is post-MVP comparison work only.
+
+## D023 — Heterogeneous graph view derived from the typed mission graph (2026-11-14, deferred with D022)
+
+**Decision:** If the baseline is built, the NetworkX typed graph stays the single source of truth (§5.1, D002). `nco/features.py` derives a deterministic encoder view from it at each decoding step:
+
+- node type *task* and node type *agent*;
+- weighted task–agent capability-fit edges;
+- agent–agent hop distances in the selected topology;
+- task–task `DEPENDS_ON` adjacency;
+- a context node.
+
+Rows are ordered by ID and features normalised. No one-hot IDs are used, so the view is size-agnostic.
+
+**Why:** In the paper, the state graph is an encoder input, not a system of record. Deriving it keeps one representation. The paper rejects one-hot encodings because they tie a model to one instance size.
+
+## D024 — HAM encoder with edge-biased self-attention and a task → agent hierarchical decoder (2026-11-14, deferred with D022)
+
+**Decision:**
+
+- **Encoder.** Follow the paper's HAM: type-specific projections, per-type multi-head self-attention, then cross-attention whose scores are multiplied by the task–agent edge weight.
+- **Deviation from the paper.** Add intra-type attention biases: `−β·hops` between agents (masked where there is no path) and a dependency bias between tasks. Without them the selected topology never reaches the encoder.
+- **Decoder.** Factorise the composite action as `π(t, a | s) = π_T(t | s) · π_A(a | s', t)`. Each sub-policy has its own attention decoder.
+- **Masks.** A task is selectable when it is unassigned and all its predecessors are assigned. An agent is selectable when it is available, capable, within capacity and budget, and reachable by a permitted path from the agents of the task's predecessors.
+- **Executable graph.** The §12.10 "topology changes the objective or the assignment" test and the `h0 = h1 = 0` ablation must also pass for this allocator.
+
+**Why:** The paper's encoder and decoder ablations (Tables 3–4) favour HAM and hierarchical decoding. SAMG adds precedence and graph reachability, which the paper's problem does not have. These extensions keep "the graph is executable" true for the baseline.
+
+## D025 — Train offline with Pa-POMO, then freeze (2026-11-14, deferred with D022)
+
+**Decision:**
+
+- **Method.** REINFORCE with the Pa-POMO shared baseline: `W` starting actions sampled from the policy without replacement, plus a one-epoch exponential-moving-average warm-up.
+- **Data.** Training instances are generated on the fly from the scenario generator's `nco-train` seed range.
+- **Reward.** The negative of the allocation objective CP-SAT minimises, `allocation.common.evaluate(...).weighted_total`, with the `config/allocation.yaml` weights and the D021 link cost.
+- **Freezing.** One checkpoint is selected on `nco-dev` instances only and frozen by its SHA-256. There are no online or fine-tuning updates. LinUCB and UCB1 remain the only online learners.
+
+**Why:** The paper trains this way (Algorithm 1). A frozen checkpoint behaves as a fixed allocator in the sense of brief §7.1. It also keeps the "one online learner" rule of brief §6.5.
+
+## D026 — Learning-gate invariant restated; model-artefact invariants for the neural baseline (2026-11-14)
+
+**Decision:** INV-05 applies unchanged in the MVP. If the neural baseline is enabled, it is read as "only `ADMITTED` episodes can update persistent *online* policy state (LinUCB, UCB1)". The following invariants then also apply, **only while the baseline is enabled**:
+
+- **INV-10:** allocator training data and rewards come only from the seeded generator and `allocation.common.evaluate`. Agent events, witness events and episodes, admitted or not, are never training inputs.
+- **INV-11:** a checkpoint is loaded only if its SHA-256 matches a `FROZEN` registry row and the run manifest, and only with `torch.load(weights_only=True)`.
+- **INV-12:** every plan the neural allocator returns passes `allocation.validate_plan` before simulation. A failure falls back to CP-SAT, or to greedy if CP-SAT is unavailable, with a reason code.
+- **INV-13:** the `nco-train`, `nco-dev` and `nco-test` seed ranges are disjoint from each other and from the Experiment A splits.
+
+Extends D004. Details are in [SECURITY_MODEL.md](SECURITY_MODEL.md#offline-training-plane-and-model-artefacts-deferred-neural-baseline).
+
+**Why:** An RL-trained solver opens a second route by which data shapes future decisions. These rules close that route before the baseline can exist. Masking is a construction aid, not a proof.
+
+## D027 — Compute and device policy for the neural baseline (2026-11-14, deferred with D022)
+
+**Decision:**
+
+- **MVP.** Nothing in the MVP needs PyTorch, an XPU or the NPU.
+- **Hardware.** The baseline runs only on one developer's laptop: Intel Core Ultra 5 125H, Intel Arc iGPU, AI Boost NPU, 15.4 GB RAM, no NVIDIA GPU.
+- **Training device.** The XPU is used **only** to train, and optionally benchmark, the baseline: `device="xpu"` with torch 2.15.0+xpu in a separate virtual environment. The project `.venv` keeps CPU torch or no torch at all.
+- **Choosing between XPU and CPU.** Models of roughly ≥ 259k parameters use the XPU after a CPU/XPU benchmark. Tiny models use the CPU. For 7k–259k parameters, time both devices.
+- **Encoder code.** Plain PyTorch attention, with no PyTorch Geometric, because `GCNConv` fails on XPU at every tested size. A PyG baseline, if ever added, runs on CPU.
+- **NPU.** Inference only, through OpenVINO with fixed padded shapes, and optional.
+- **Model size.** Recommended `d_h = 128`, `L = 3`, 8 heads (≈ 1.7M parameters). Small fallback `d_h = 64`, `L = 2` (≈ 0.3M).
+- **Reproducibility.** Defined at the checkpoint, not at training. Recorded inference runs on CPU with deterministic algorithms and a fixed tie-break, and sampling uses a seeded `torch.Generator`.
+
+**Why:** The paper trained for 4–27 h on an A100-80GB. Deterministic inference from a pinned checkpoint is achievable on this laptop; bitwise-reproducible iGPU training is not. The PyG/XPU failure has been observed on this hardware.
+
+## D028 — The neural baseline sits outside the 24-hour timeline (2026-11-14)
+
+**Decision:** No phase, gate, sync point or fallback rule of the hackathon plan contains neural work. The design, ownership and risks are kept in [THREE_PERSON_PLAN.md "Later: neural allocator baseline (local only)"](THREE_PERSON_PLAN.md#later-neural-allocator-baseline-local-only). That work starts only after the hackathon submission, or after the brief's MVP checklist (§18) is complete.
+
+**Why:** Brief §14 makes the H14 vertical slice and the two main experiments non-negotiable. Keeping the baseline off the timeline removes the risk that it displaces them.
+
+## D029 — Experiments A–C use CP-SAT; Experiment E is optional and local-only (2026-11-14)
+
+**Decision:**
+
+- **Experiments A–C** use CP-SAT, with the greedy fallback disclosed, for every compared policy (brief §7.1).
+- **Experiment E** is an optional comparison run later, on the laptop that does the training. It follows the paper's protocol (Tables 3–5):
+  - the frozen neural allocator (greedy, sampling ×W and beam decoding) against CP-SAT (time-limited, plus a long-limit best-known reference) and greedy;
+  - on `nco-test` instances;
+  - measuring objective, gap to the best known plan, runtime, validator pass rate and fallback rate;
+  - with an optional mission-size sweep and a decoder ablation.
+- **Not in the hackathon.** Experiment E results are not part of the hackathon results tables or demo.
+
+**Why:** The team chose CP-SAT for A–C. The paper's own result at small sizes is parity with an exact solver, so any neural claim must come from a separate measurement (§12.10, §17.1).

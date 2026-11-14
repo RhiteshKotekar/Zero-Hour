@@ -3,6 +3,7 @@
 Applies to: `github.com/RhiteshKotekar/Zero-Hour` (currently docs + empty package skeleton)
 Spec of record: `SAMG_Shunya_Final_Hackathon_Build_Brief.md` (shared outside this repo; referred to as "the brief", section numbers as `§`)
 Build window: 24 hours, hour markers below are relative to kickoff (H0).
+Allocator: CP-SAT with the deterministic greedy fallback, for the MVP and for Experiments A–C (D003, D029). A neural allocator baseline (Luttmann & Xie, ICAPS 2024; [PAPER_ALIGNMENT.md](PAPER_ALIGNMENT.md), D022–D029) is **post-hackathon, optional and local-only**. It is not in any phase, gate or fallback rule below; see [Later: neural allocator baseline (local only)](#later-neural-allocator-baseline-local-only).
 
 ## 0. Team and ownership
 
@@ -53,6 +54,8 @@ The repo docs and the Final brief disagree in several places. This plan follows 
 | D016 | Freshness | timestamp age + nonce | mission epoch + per-agent sequence; dedupe key `(mission_id, epoch, agent_id, seq)` (§8.6) | Brief; timestamp kept as a secondary check |
 | D017 | Experiments | Exp 1 (adaptive), Exp 2 (security) | A (topology), B (context value), C (poisoning), D (optional replay/graph patch) (§12) | Brief |
 | D018 | UI | Streamlit experiment viewer | 3 views: Mission Control, Adaptive Evaluation Lab, Security & Attack Lab (§15) | Brief; CLI is the fallback |
+
+D022–D029 (2026-11-14) record the paper-alignment design for a deferred neural allocator baseline. None of them changes the hackathon scope: the deliverable stays inside brief §2.2, and the allocator for A–C is CP-SAT (D029). V does not need to check them before G0.
 
 Target layout (keeps the repo's existing packages, adds the few the brief needs):
 
@@ -227,7 +230,7 @@ Goal: everyone can import the models, load fixtures, and agree on bytes that get
 1. Run the UI acceptance tests in §15.3, §15.4 and §15.5 click by click; every view must show mission ID, config ID, seed, and live/replayed/aggregate status.
 2. Follow the README quick start on a clean machine/venv; fix the README text (V may edit README prose).
 3. Time the 4-minute (§15.7) and 3-minute (§15.8) demos; record a backup screen video (§15.9).
-4. Prepare a one-page judge Q&A sheet from §16 and a limitations slide from §17, using only claims marked "supported" in Phase 3.
+4. Prepare a one-page judge Q&A sheet from §16 and a limitations slide from §17, using only claims marked "supported" in Phase 3. If judges ask about learned allocators, answer that a neural baseline following Luttmann & Xie (ICAPS 2024) is planned as post-hackathon comparison work, and claim no result for it.
 
 **H23 code freeze.** Only demo-blocking bug fixes after this, each with V re-running the demo.
 
@@ -276,3 +279,51 @@ Goal: everyone can import the models, load fixtures, and agree on bytes that get
 | LinUCB doesn't beat P1 or P2 | held-out CI overlaps | Report it honestly (§12.10); do not retune on test |
 | Two Claude sessions drift from contracts | contract tests fail after a merge | Revert, then change via DECISIONS entry |
 | Merge conflicts in `domain/` | any PR touching both `mission.py` and `events.py` | One writer per file; domain frozen after H2 |
+
+## Later: neural allocator baseline (local only)
+
+**Outside the 24-hour timeline (D028).** This work starts only after the hackathon submission, or after the §18 MVP checklist is complete. Nothing in §3–§8 depends on it. It is an optional **comparison baseline** for CP-SAT, following Luttmann & Xie (ICAPS 2024). It runs only on the developer laptop that has an Intel Arc XPU. The design is in [PAPER_ALIGNMENT.md](PAPER_ALIGNMENT.md) and the decisions in D022–D029.
+
+### Ownership (same A/B line as the MVP)
+
+| Person | Writes | Responsibility |
+| --- | --- | --- |
+| Dev A | `allocation/validate.py` (`validate_plan`), `allocation/neural_adapter.py`, `nco/env.py`, `nco/features.py`, Experiment E in `evaluation/runner.py` | Allocation semantics: the MDP's masks, transition and reward, all built on the existing `allocation.common.evaluate`; the plan validator; fallback wiring (INV-12); Experiment E |
+| Dev B | `nco/model.py`, `nco/train.py`, `nco/decode.py`, `nco/checkpoint.py`, `model_checkpoints` / `nco_training_runs` / `allocator_evaluations` tables | Learning machinery and its trust boundary: HAM encoder + hierarchical decoder, Pa-POMO training, decoding, checkpoint integrity (INV-10, INV-11) |
+| Validator | `tests/contract/fixtures/nco_masks_judge.json` (data only), `docs/VALIDATION_LOG.md` | Hand-written mask oracle, device benchmark log, checkpoint-hash re-check, seed-range overlap check, determinism diff |
+
+Because `samg.domain` is frozen after G0, these additions need their own DECISIONS entry and updated fixtures when the work starts: `SolverName.NEURAL_HAM` (UPPERCASE value per D020), the extra `AllocationPlan` fields and `config/nco.yaml`.
+
+### Steps
+
+1. **A:** `allocation.validate_plan`, the CP-SAT constraint set plus graph reachability, returning reason codes. CP-SAT and greedy plans must pass it.
+2. **A:** `nco/env.py` and `nco/features.py` per PAPER_ALIGNMENT §3.1.
+   - Tests: masks equal V's `nco_masks_judge.json`; a Hypothesis property test that every random masked rollout ends in a `validate_plan`-accepted plan or an explicit dead end; changing topology changes the agent mask or hop features on the judge mission.
+3. **B:** `nco/model.py`, in plain PyTorch with **no PyG**.
+   - **Device benchmark:** time one forward and backward pass at batch 256 on CPU and on XPU (separate venv, torch 2.15.0+xpu) for both sizes in `config/nco.yaml`, and print `param_count`. Pick the device per D027; on an XPU error, use CPU.
+   - **Checkpoint registry:** `nco/checkpoint.py` refuses a hash mismatch or a non-`FROZEN` row before deserialising, and uses `weights_only=True`.
+4. **B:** `nco/train.py` (Pa-POMO), capped at about 3 h on the XPU, plus `nco/decode.py` (greedy, seeded sampling, beam with a fixed tie-break).
+5. **A:** `allocation/neural_adapter.py`: `load_frozen` → `decode` → best by `evaluate` → `validate_plan`. On failure it falls back to CP-SAT, then greedy, with `fallback_reason`.
+6. **B:** select a checkpoint on `nco-dev` only. Gate: 100 % validator pass and mean gap ≤ 5 % to CP-SAT. If it passes, freeze one SHA-256; if not, reject all candidates and report that.
+7. **A:** Experiment E (EXPERIMENTS.md, D029) on `nco-test`, locally. Experiments A–C are not re-run, except as an optional allocator-sensitivity check.
+8. **V:** hash re-check (`Get-FileHash … -Algorithm SHA256`) against the manifest; seed-range overlap check; two identical CLI runs with `--allocator neural`; Experiment E table copied from CSV only.
+
+### Rules for Claude sessions on this work
+
+- No PyTorch Geometric.
+- Training happens only in the separate XPU venv; the project `.venv` keeps CPU torch or no torch.
+- Recorded inference runs on CPU with deterministic algorithms.
+- Nothing under `nco/` imports `persistence`, `assurance` or report/witness code.
+- Every `torch.load` uses `weights_only=True`, through `checkpoint.load_frozen` only.
+- No MARL, LLMs or other learners.
+- Give Claude PAPER_ALIGNMENT §1 and §3.1, and do not let it invent paper details. If the authors' MIT-licensed `rl4msprp` code is adapted, keep its licence notice.
+
+### Risks
+
+| Risk | Early sign | Response |
+| --- | --- | --- |
+| Training too slow on the laptop (the paper took 4–27 h on an A100) | Dev gap not improving after about 1 h | Switch to the small config (`d_h = 64`, `L = 2`) and a smaller `W`, or stop |
+| XPU failure (`UR_RESULT_ERROR_OUT_OF_RESOURCES` or similar) | Benchmark or training errors | Use CPU with the small config. Never use PyG on XPU. |
+| Mask/validator mismatch | `validate_plan` rejects neural plans | Treat it as an env bug. Fallback keeps runs valid; report the fallback rate. |
+| Neural only matches CP-SAT at SAMG size | Gap ≈ 0 | This is the expected result ([P] Table 5, PRP20). Report parity plus runtime; claim nothing more. |
+| RAM pressure (15.4 GB) | Swapping | Lower the batch size |

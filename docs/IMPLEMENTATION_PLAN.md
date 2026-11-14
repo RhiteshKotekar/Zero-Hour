@@ -2,6 +2,8 @@
 
 The goal is to let four developers work in parallel without competing for the same files. Public model changes require agreement because they affect every workstream.
 
+> **Status:** superseded for team structure by [THREE_PERSON_PLAN.md](THREE_PERSON_PLAN.md) (D009). A deferred, optional, local-only neural allocator baseline (D022–D029, [PAPER_ALIGNMENT.md](PAPER_ALIGNMENT.md)) is mapped onto this plan's roles in [the addendum](#addendum--deferred-neural-allocator-baseline-post-hackathon-local-only). It is not part of any milestone below.
+
 ## Ownership map
 
 | Developer | Owns | Primary deliverables | Integration contract |
@@ -71,3 +73,22 @@ The release integrator writes this in `tests/integration/`. It must prove that a
 6. Wire the protected and vulnerable experiment paths, then add charts only after raw data is persisted.
 
 This order gives each developer a meaningful independent target and reaches the security-critical learning gate before UI polish.
+
+## Addendum — deferred neural allocator baseline (post-hackathon, local-only)
+
+This addendum is optional and comes after M3. It is a comparison baseline for CP-SAT, following Luttmann & Xie (ICAPS 2024); see [PAPER_ALIGNMENT.md](PAPER_ALIGNMENT.md) and D022–D029. It is trained only on one developer's laptop, which has an Intel Arc XPU. M0–M3 and both main experiments use CP-SAT with the greedy fallback.
+
+| Developer | Additional ownership | Deliverables |
+| --- | --- | --- |
+| A — Domain & topology | `SolverName.NEURAL_HAM`, extended `AllocationPlan` fields (new DECISIONS entry); `nco/features.py` | Heterogeneous graph view (D023), derived from `CoordinationGraph` |
+| B — Allocation | `allocation/validate.py`, `allocation/neural_adapter.py`, `nco/env.py` | Plan validator, allocation MDP with masks (D024) built on the existing `allocation.common.evaluate`, fallback wiring (INV-12) |
+| C — Simulation & learning | `nco/model.py`, `nco/train.py`, `nco/decode.py` | HAM encoder + hierarchical decoder; Pa-POMO training on the XPU after a CPU/XPU benchmark (D025, D027); Experiment E runner |
+| D — Assurance, persistence & dashboard | `nco/checkpoint.py`; `model_checkpoints`, `nco_training_runs`, `allocator_evaluations` tables | Checkpoint integrity (INV-11) and the provenance import check (INV-10) |
+
+The later steps run in this order:
+
+1. **L1:** env masks match the fixture oracle; the model forward and backward pass runs on the chosen device; a tampered checkpoint is refused.
+2. **L2:** training is capped at about 3 h; one checkpoint is frozen on `nco-dev`, with 100 % validator pass and mean gap ≤ 5 %.
+3. **L3:** optional Experiment E, run locally.
+
+Rule additions: no PyTorch Geometric; no `torch.load` without `weights_only=True`; nothing under `nco/` imports persistence or assurance code.

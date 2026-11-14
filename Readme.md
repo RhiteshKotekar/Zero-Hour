@@ -78,6 +78,7 @@ tests/          Unit, contract, and integration test suites
 - [Data model](docs/DATA_MODEL.md) — shared contracts and SQLite records.
 - [Security model](docs/SECURITY_MODEL.md) — ACP validation and learning gate.
 - [Experiment protocol](docs/EXPERIMENTS.md) — reproducible demonstrations and metrics.
+- [Three-person plan](docs/THREE_PERSON_PLAN.md) — current ownership, phases, gates, and validator checklist (supersedes the four-developer plan).
 - [Four-developer plan](docs/IMPLEMENTATION_PLAN.md) — ownership, sequence, and integration rules.
 - [Technical decisions](docs/DECISIONS.md) — decisions already made so work does not fork architecturally.
 

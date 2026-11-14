@@ -23,7 +23,7 @@ from typing import Any
 
 import numpy as np
 
-from samg.allocation import allocate
+from samg.allocation import feasible_topologies
 from samg.domain import (
     AgentEvent,
     EpisodeStatus,
@@ -41,7 +41,6 @@ from samg.orchestration import MissionRunRecord, RunSettings, World, replay_even
 from samg.simulation import compute_reward
 from samg.simulation import run as simulate
 from samg.simulation.scenarios import factor_grid, generate_scenario, judge_scenario
-from samg.topology import build_graph, eligible_topologies
 
 Out = Callable[[str], None]
 MIN = 60_000.0
@@ -258,10 +257,10 @@ def render_persistence(world: World, out: Out) -> None:
 
 
 def demo_stream(n: int, settings: RunSettings, seed_base: int) -> tuple[list[tuple[Scenario, int]], int]:
-    """First ``n`` generated missions (abundant-resource factor combos) where every topology is
-    eligible and has a feasible plan. Returns the stream and the number of seeds skipped."""
-    grid = [f for f in factor_grid() if f.resources == "abundant"]
-    greedy = settings.allocation.model_copy(update={"use_cpsat": False})
+    """First ``n`` generated missions (seed ``seed_base + i``, factor combos cycled over the full grid)
+    that offer the policy at least two allocatable topologies (D030). Returns the stream and the
+    number of candidate seeds skipped."""
+    grid = factor_grid()
     stream: list[tuple[Scenario, int]] = []
     tried = 0
     while len(stream) < n:
@@ -269,36 +268,32 @@ def demo_stream(n: int, settings: RunSettings, seed_base: int) -> tuple[list[tup
         seed = seed_base + tried
         tried += 1
         scenario = generate_scenario(seed, factors)
-        eligible, _ = eligible_topologies(scenario, settings.costs)
-        if len(eligible) == len(TopologyName) and all(
-            allocate(scenario, build_graph(scenario, t, settings.costs)[1], settings.costs, greedy).feasible
-            for t in eligible
-        ):
+        eligible, _, _ = feasible_topologies(scenario, settings.costs, settings.allocation)
+        if len(eligible) >= 2:
             stream.append((scenario, seed))
     return stream, tried - n
 
 
 def counterfactual_rewards(scenario: Scenario, seed: int, settings: RunSettings) -> dict[TopologyName, float]:
-    """Evaluation-only shadow run of every topology (brief 12.3). Never reaches a learner."""
+    """Evaluation-only shadow run of every allocatable topology (brief 12.3). Never reaches a learner."""
+    _, _, plans = feasible_topologies(scenario, settings.costs, settings.allocation)
     rewards = {}
-    for topo in eligible_topologies(scenario, settings.costs)[0]:
-        _, graph = build_graph(scenario, topo, settings.costs)
-        plan = allocate(scenario, graph, settings.costs, settings.allocation)
-        if plan.feasible:
-            trace = simulate(scenario, graph, plan, seed, settings.costs)
-            rewards[topo] = compute_reward(trace.metrics, settings.reward).reward
+    for topo, (graph, plan) in plans.items():
+        trace = simulate(scenario, graph, plan, seed, settings.costs)
+        rewards[topo] = compute_reward(trace.metrics, settings.reward).reward
     return rewards
 
 
 # --- section 3 helpers -------------------------------------------------------
 
 
-def _probe_choice(policy: LinUCBPolicy, scenario: Scenario) -> tuple[TopologyName | None, dict[TopologyName, float]]:
+def _probe_choice(policy: LinUCBPolicy, scenario: Scenario,
+                  settings: RunSettings) -> tuple[TopologyName | None, dict[TopologyName, float]]:
     """What the policy would pick for this context, without changing its state."""
     from samg.context import extract_features
 
     ctx = extract_features(scenario)
-    eligible, _ = eligible_topologies(scenario)
+    eligible, _, _ = feasible_topologies(scenario, settings.costs, settings.allocation)
     decision = policy.clone().select(ctx.features, eligible, ctx.feature_schema_version)
     return decision.topology, dict(decision.scores)
 
@@ -347,19 +342,23 @@ def run_demo(out: Out = print, cfg: DemoConfig | None = None) -> DemoResult:
     out(SUB)
     full, skipped = demo_stream(cfg.n_learn + cfg.n_attack + 1, settings, cfg.stream_seed_base)
     learn, attack_stream, probe = full[:cfg.n_learn], full[cfg.n_learn:cfg.n_learn + cfg.n_attack], full[-1]
-    out(f"stream: generate_scenario(seed, factors), seeds from {cfg.stream_seed_base}, abundant-resource factor "
-        f"combos; {skipped} candidate seeds skipped because some topology had no feasible plan")
-    out(" #  mission                    d     h     r     a    pick  how      ACP reward  best(oracle)  regret")
+    out(f"stream: generate_scenario(seed, factors), seeds from {cfg.stream_seed_base}, factor combos cycled over "
+        f"the full grid; {skipped} candidate seed(s) skipped (fewer than 2 allocatable topologies, D030)")
+    out(" #  mission                    d     h     r     a    offered  pick  how      ACP reward  best(oracle)  regret")
     regrets: list[float] = []
     picks: list[TopologyName] = []
     oracle_sum: dict[TopologyName, float] = {t: 0.0 for t in TopologyName}
+    oracle_n: dict[TopologyName, int] = {t: 0 for t in TopologyName}
+    best_arms: list[TopologyName] = []
     for i, (sc, seed) in enumerate(learn, start=1):
         r = run_single_mission(sc, world, settings, seed=seed, mission_index=i)
         result.stream.append(r)
         cf = counterfactual_rewards(sc, seed, settings)
         for t, v in cf.items():
             oracle_sum[t] += v
+            oracle_n[t] += 1
         best = max(cf, key=lambda t: (cf[t], -ARM_ORDER.index(t)))
+        best_arms.append(best)
         reward = r.episode.reward if r.episode and r.episode.reward is not None else 0.0
         regret = cf[best] - cf.get(r.decision.topology, reward)
         regrets.append(regret)
@@ -367,15 +366,19 @@ def run_demo(out: Out = print, cfg: DemoConfig | None = None) -> DemoResult:
         f = r.context.features
         how = "warm-up" if r.decision.warmup else "UCB"
         out(f"{i:2d}  {sc.mission.mission_id[:25]:<25} {f[1]:5.2f} {f[2]:5.2f} {f[3]:5.2f} {f[4]:5.2f}   "
-            f"{SHORT[r.decision.topology]}  {how:<7}  {reward:8.4f}    {SHORT[best]} {cf[best]:.4f}   {regret:7.4f}"
+            f"{''.join(SHORT[t][0] for t in r.decision.eligible):<7}  {SHORT[r.decision.topology]}  {how:<7}  {reward:8.4f}    {SHORT[best]} {cf[best]:.4f}   {regret:7.4f}"
             f"   {r.episode.status.value if r.episode else '-'}")
     half = len(picks) // 2
     for label, part, reg in (("first half", picks[:half], regrets[:half]), ("second half", picks[half:], regrets[half:])):
         c = Counter(part)
         out(f"  {label:<11}: " + "  ".join(f"{SHORT[t]}={c.get(t, 0):2d}" for t in ARM_ORDER)
             + f"   mean regret {np.mean(reg):.4f}")
-    out("  counterfactual mean reward over the stream (evaluation only): "
-        + "  ".join(f"{SHORT[t]}={oracle_sum[t] / len(learn):.4f}" for t in ARM_ORDER))
+    wins = Counter(best_arms)
+    out("  counterfactual, evaluation only (every allocatable arm shadow-run on the same seed; never learned):")
+    out("    best arm per mission: " + "  ".join(f"{SHORT[t]}={wins.get(t, 0)}" for t in ARM_ORDER)
+        + "   mean reward where allocatable: "
+        + "  ".join(f"{SHORT[t]}={oracle_sum[t] / oracle_n[t]:.4f} (n={oracle_n[t]})" if oracle_n[t] else
+                    f"{SHORT[t]}=- (n=0)" for t in ARM_ORDER))
     out("  learned theta . x for the judge mission context: "
         + "  ".join(f"{SHORT[t]}={float(_theta(learner, t) @ np.array(rec.context.features)):.4f}" for t in ARM_ORDER))
     applied = world.repo.count("learning_events", "applied_at IS NOT NULL")
@@ -481,8 +484,8 @@ def run_demo(out: Out = print, cfg: DemoConfig | None = None) -> DemoResult:
         out(f"  {arm.value:<16} {da:14.4f}  {db:13.4f}  {dt:20.4f}      "
             f"{float(_theta(s2, arm) @ x):.4f} / {float(_theta(s1, arm) @ x):.4f}")
     for label, sc in (("judge mission", judge), ("next unseen generated mission", probe[0])):
-        t2, sc2 = _probe_choice(s2, sc)
-        t1, sc1 = _probe_choice(s1, sc)
+        t2, sc2 = _probe_choice(s2, sc, settings)
+        t1, sc1 = _probe_choice(s1, sc, settings)
         out(f"  next choice for the {label}: S2 -> {t2.value if t2 else '-'}   S1 -> {t1.value if t1 else '-'}")
         out("      UCB scores  S2: " + " ".join(f"{SHORT[a]}={sc2[a]:.3f}" for a in ARM_ORDER)
             + "   S1: " + " ".join(f"{SHORT[a]}={sc1[a]:.3f}" for a in ARM_ORDER))

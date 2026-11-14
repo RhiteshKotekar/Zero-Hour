@@ -16,7 +16,10 @@ Execution model (all randomness from ``np.random.default_rng(seed)``):
   a failed hop is retransmitted (one extra hop delay) up to
   ``MAX_HOP_ATTEMPTS`` attempts. If every attempt fails, the message is lost
   and the dependent task is ``BLOCKED`` (then ``FAILED`` at mission end).
-* Actual duration = nominal x U(1 - jitter, 1 + jitter).
+* Actual duration = nominal x U(1 - jitter, 1 + jitter), where nominal is the plan's
+  ``assignment.end - assignment.start`` (the allocator's effective duration for that
+  agent, so planning-time overheads such as span of control reach ground truth);
+  ``task.duration_ms`` is used only if the plan carries a zero-length interval.
 * Optional task failure: ``task_failure_probability`` per task, or a forced
   failure for task IDs in ``forced_failures`` (fault injection for tests and
   attack scenarios). A failed task ends ``EXECUTING -> FAILED``; its
@@ -150,7 +153,8 @@ def run(
 
         jitter_u, fail_u = draws[a.task_id]
         start = max(agent_free.get(a.agent_id, 0), ready)
-        duration = int(round(task.duration_ms * (1.0 - duration_jitter + 2.0 * duration_jitter * jitter_u)))
+        nominal = a.end - a.start if a.end > a.start else task.duration_ms
+        duration = int(round(nominal * (1.0 - duration_jitter + 2.0 * duration_jitter * jitter_u)))
         end = start + max(duration, 1)
         agent_free[a.agent_id] = end
         emit(a.task_id, a.agent_id, S.ASSIGNED, S.EXECUTING, start)

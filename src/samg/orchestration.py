@@ -21,7 +21,8 @@ comparison run in separate worlds so their events never collide.
 
 from __future__ import annotations
 
-from collections.abc import Collection, Sequence
+from collections.abc import Collection, Iterator, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -29,8 +30,9 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from samg.allocation import allocate
+from samg.allocation import allocate, feasible_topologies
 from samg.assurance.admission import admit_episode, open_session, validate_event
+from samg.assurance.freshness import InMemorySeenStore
 from samg.assurance.identity import Identity, IdentityRegistry, KeyRing, build_identities
 from samg.assurance.policy import SecurityPolicy, load_security_policy
 from samg.context import MissionContext, extract_features
@@ -69,7 +71,7 @@ from samg.persistence.db import connect
 from samg.persistence.repositories import DbSeenStore, Repository
 from samg.simulation import compute_reward
 from samg.simulation import run as simulate
-from samg.topology import build_graph, eligible_topologies
+from samg.topology import build_graph
 from samg.witness import WitnessService, draft_reports, sign_reports
 
 ORCHESTRATION_VERSION = "orch-v0-integration"
@@ -190,6 +192,145 @@ def receipt_order(witness: Sequence[WitnessEvent], agent: Sequence[AgentEvent]) 
     return [e for *_, e in sorted(tagged, key=lambda x: x[:3])]
 
 
+# --- execution of one chosen topology (policy-free) ---------------------------
+
+
+class MissionExecution(BaseModel):
+    """Result of executing one (scenario, topology): plan, ground truth, evidence and ACP admission.
+
+    Maps onto ``samg.evaluation.runner.MissionResult``: ``feasible``,
+    ``ground_truth_reward.reward``, ``episode`` and ``metrics_dict()``.
+    """
+
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
+    decision_id: str
+    graph: CoordinationGraph
+    plan: AllocationPlan
+    identities: tuple[Identity, ...]
+    trace: ExecutionTrace | None = None
+    ground_truth_reward: RewardBreakdown
+    witness_events: tuple[WitnessEvent, ...] = ()
+    agent_events: tuple[AgentEvent, ...] = ()
+    auth_decisions: tuple[EventDecision, ...] = ()
+    final_decisions: tuple[EventDecision, ...] = ()
+    false_claim_event_ids: tuple[str, ...] = ()
+    attacked: bool = False
+    episode: EpisodeRecord
+    acp_metrics: GroundTruthMetrics | None = None
+    acp_reward: RewardBreakdown | None = None
+    claimed_reward: float | None = None
+
+    @property
+    def feasible(self) -> bool:
+        return self.plan.feasible
+
+    def metrics_dict(self) -> dict[str, float]:
+        """Ground-truth metrics (evaluation only) as a flat dict."""
+        if self.trace is None:
+            return {}
+        m = self.trace.metrics
+        return {"C": m.weighted_completion, "T": m.duration_norm, "R": m.resource_norm, "H": m.coordination_norm,
+                "makespan_ms": m.makespan, "coordination_cost": m.coordination_cost,
+                "communication_failures": float(m.communication_failures)}
+
+
+@contextmanager
+def _maybe_transaction(repo: Repository | None) -> Iterator[None]:
+    if repo is None:
+        yield
+    else:
+        with repo.transaction():
+            yield
+
+
+def execute_mission(
+    scenario: Scenario,
+    topology: TopologyName,
+    settings: RunSettings,
+    *,
+    seed: int,
+    decision_id: str,
+    graph: CoordinationGraph | None = None,
+    plan: AllocationPlan | None = None,
+    repo: Repository | None = None,
+    mission_index: int = 0,
+    attack: AttackConfig | None = None,
+    forced_failures: Collection[str] = (),
+) -> MissionExecution:
+    """Graph -> allocate -> simulate -> witness + reports (+ attack) -> ACP validate/corroborate/admit.
+
+    No policy is touched, so this is what a ``MissionExecutor`` adapter wraps.
+    ``graph``/``plan`` may be passed in (e.g. from ``feasible_topologies``) to
+    avoid solving twice. With ``repo`` every artefact is persisted and freshness
+    uses the durable seen-store; the caller must have recorded the mission and
+    the topology decision first (``run_single_mission`` does). Without ``repo``
+    the ACP uses an in-memory seen-store and nothing is persisted.
+    """
+    mission = scenario.mission
+    base_time = SIM_BASE_TIME + timedelta(days=mission_index)
+    if graph is None or plan is None:
+        _, graph = build_graph(scenario, topology, settings.costs)
+        if graph is None:
+            raise ValueError(f"{topology.value} is not structurally eligible for {mission.mission_id}")
+        plan = allocate(scenario, graph, settings.costs, settings.allocation)
+    if graph.topology is not topology or plan.topology is not topology:
+        raise ValueError("graph/plan do not match the chosen topology")
+    registry, ring = mission_keys(scenario, settings.security)
+    if repo is not None:
+        with repo.transaction():
+            repo.add_graph_snapshot(graph_id=f"graph:{decision_id}", mission_id=mission.mission_id,
+                                    epoch=mission.epoch, topology=topology.value, graph=graph)
+            repo.add_allocation_plan(plan_id=plan.plan_id, decision_id=decision_id, feasible=plan.feasible,
+                                     solver=plan.solver.value,
+                                     plan=plan.model_dump(mode="json", exclude={"runtime_ms"}))
+    seen = DbSeenStore(repo) if repo is not None else InMemorySeenStore()
+    session = open_session(scenario, plan, registry, settings.security, seen, repo)
+
+    trace = None
+    witness_events: list[WitnessEvent] = []
+    agent_events: list[AgentEvent] = []
+    oracle: dict[str, bool] = {}
+    attacked = False
+    received: list[tuple[AgentEvent | WitnessEvent, EventDecision]] = []
+    if plan.feasible:
+        forced = set(forced_failures)
+        sabotaged = attack.sabotaged_task(mission_index, plan) if attack is not None else None
+        if sabotaged is not None:
+            forced.add(sabotaged)
+        trace = simulate(scenario, graph, plan, seed, settings.costs, forced_failures=forced)
+        gt_reward = compute_reward(trace.metrics, settings.reward)
+        witness_events = WitnessService(settings.security.witness.identity_id, registry, ring).observe(trace, base_time)
+        drafts = draft_reports(trace, plan, gt_reward)
+        if attack is not None and attack.active(mission_index):
+            attacked = True
+            drafts = apply_attack(drafts, trace, plan, gt_reward, attack, agents=[a.agent_id for a in scenario.agents])
+        agent_events, oracle = sign_reports(drafts, mission_id=mission.mission_id, epoch=mission.epoch,
+                                            base_time=base_time, registry=registry, ring=ring)
+        if repo is not None:
+            repo.add_outcome(outcome_id=f"outcome:{decision_id}", plan_id=plan.plan_id, seed=seed, outcome=trace)
+        with _maybe_transaction(repo):
+            for event in receipt_order(witness_events, agent_events):
+                received.append((event, validate_event(session, event, now=event.issued_at)))
+    else:
+        gt_reward = compute_reward(None, settings.reward)
+
+    with _maybe_transaction(repo):
+        admission = admit_episode(session, received, graph=graph, episode_id=f"episode:{decision_id}",
+                                  topology_decision_id=decision_id, reward_config=settings.reward,
+                                  costs=settings.costs)
+        if repo is not None:
+            repo.add_episode(admission.episode)
+    return MissionExecution(
+        decision_id=decision_id, graph=graph, plan=plan, identities=tuple(registry.identities()), trace=trace,
+        ground_truth_reward=gt_reward, witness_events=tuple(witness_events), agent_events=tuple(agent_events),
+        auth_decisions=tuple(d for _, d in received), final_decisions=admission.final_decisions,
+        false_claim_event_ids=tuple(sorted(k for k, v in oracle.items() if v)), attacked=attacked,
+        episode=admission.episode, acp_metrics=admission.metrics, acp_reward=admission.breakdown,
+        claimed_reward=_last_authenticated_reward_claim(received),
+    )
+
+
 # --- the mission loop --------------------------------------------------------
 
 
@@ -203,19 +344,21 @@ def run_single_mission(
     attack: AttackConfig | None = None,
     forced_failures: Collection[str] = (),
 ) -> MissionRunRecord:
-    """Run one mission end to end and apply (or refuse) the policy update. See module docstring."""
+    """Run one mission end to end and apply (or refuse) the policy update. See module docstring.
+
+    Eligibility follows D030: the policy is offered only topologies that build
+    *and* have a feasible plan; the chosen arm's graph and plan are reused.
+    """
     mission = scenario.mission
     repo, policy, instance = world.repo, world.policy, world.policy_instance
-    base_time = SIM_BASE_TIME + timedelta(days=mission_index)
     prefix = f"{mission.mission_id}/e{mission.epoch}"
 
     context = extract_features(scenario)
-    eligible, verdicts = eligible_topologies(scenario, settings.costs)
+    eligible, verdicts, plans = feasible_topologies(scenario, settings.costs, settings.allocation)
     decision = policy.select(context.features, eligible, context.feature_schema_version)
-    decision_id = f"{prefix}/{instance}/decision"
+    decision_id = f"{prefix}/{instance}"
 
-    registry, ring = mission_keys(scenario, settings.security)
-    identities = tuple(registry.identities())
+    identities = tuple(mission_keys(scenario, settings.security)[0].identities())
     with repo.transaction():
         repo.add_mission(mission_id=mission.mission_id, epoch=mission.epoch, seed=seed, mission=mission,
                          agents=[a.model_dump(mode="json") for a in scenario.agents],
@@ -229,63 +372,18 @@ def run_single_mission(
     if decision.topology is None:
         return MissionRunRecord(**base)
 
-    _, graph = build_graph(scenario, decision.topology, settings.costs)
-    assert graph is not None  # the policy only picks eligible topologies
-    plan = allocate(scenario, graph, settings.costs, settings.allocation)
-    with repo.transaction():
-        repo.add_graph_snapshot(graph_id=f"{prefix}/{graph.topology.value}/{graph.graph_version[:12]}",
-                                mission_id=mission.mission_id, epoch=mission.epoch,
-                                topology=graph.topology.value, graph=graph)
-        repo.add_allocation_plan(plan_id=plan.plan_id, decision_id=decision_id, feasible=plan.feasible,
-                                 solver=plan.solver.value, plan=plan.model_dump(mode="json", exclude={"runtime_ms"}))
-
-    session = open_session(scenario, plan, registry, settings.security, DbSeenStore(repo), repo)
-    episode_id = f"{prefix}/{instance}/episode"
-    trace = gt_reward = None
-    witness_events: list[WitnessEvent] = []
-    agent_events: list[AgentEvent] = []
-    oracle: dict[str, bool] = {}
-    attacked = False
-    received: list[tuple[AgentEvent | WitnessEvent, EventDecision]] = []
-    if plan.feasible:
-        forced = set(forced_failures)
-        sabotaged = attack.sabotaged_task(mission_index, plan) if attack is not None else None
-        if sabotaged is not None:
-            forced.add(sabotaged)
-        trace = simulate(scenario, graph, plan, seed, settings.costs, forced_failures=forced)
-        gt_reward = compute_reward(trace.metrics, settings.reward)
-        repo.add_outcome(outcome_id=f"{prefix}/{instance}/outcome", plan_id=plan.plan_id, seed=seed, outcome=trace)
-        witness_events = WitnessService(settings.security.witness.identity_id, registry, ring).observe(trace, base_time)
-        drafts = draft_reports(trace, plan, gt_reward)
-        if attack is not None and attack.active(mission_index):
-            attacked = True
-            drafts = apply_attack(drafts, trace, plan, gt_reward, attack, agents=[a.agent_id for a in scenario.agents])
-        agent_events, oracle = sign_reports(drafts, mission_id=mission.mission_id, epoch=mission.epoch,
-                                            base_time=base_time, registry=registry, ring=ring)
-        with repo.transaction():
-            for event in receipt_order(witness_events, agent_events):
-                received.append((event, validate_event(session, event, now=event.issued_at)))
-    else:
-        gt_reward = compute_reward(None, settings.reward)
-
-    with repo.transaction():
-        admission = admit_episode(session, received, graph=graph, episode_id=episode_id,
-                                  topology_decision_id=decision_id, reward_config=settings.reward,
-                                  costs=settings.costs)
-        repo.add_episode(admission.episode)
-
-    claimed = _last_authenticated_reward_claim(received)
-    learning_event, applied, rejection = _learn(world, admission.episode, decision_id, context, claimed)
-    repo.add_policy_snapshot(snapshot_id=f"{prefix}/{instance}/policy", policy_instance=instance,
-                             state=policy.snapshot())
+    graph, plan = plans[decision.topology]
+    ex = execute_mission(scenario, decision.topology, settings, seed=seed, decision_id=decision_id, graph=graph,
+                         plan=plan, repo=repo, mission_index=mission_index, attack=attack,
+                         forced_failures=forced_failures)
+    learning_event, applied, rejection = _learn(world, ex.episode, decision_id, context, ex.claimed_reward)
+    repo.add_policy_snapshot(snapshot_id=f"policy:{decision_id}", policy_instance=instance, state=policy.snapshot())
     return MissionRunRecord(
-        **base, graph=graph, plan=plan, trace=trace, ground_truth_reward=gt_reward,
-        witness_events=tuple(witness_events), agent_events=tuple(agent_events),
-        auth_decisions=tuple(d for _, d in received), final_decisions=admission.final_decisions,
-        false_claim_event_ids=tuple(sorted(k for k, v in oracle.items() if v)), attacked=attacked,
-        episode=admission.episode, acp_metrics=admission.metrics, acp_reward=admission.breakdown,
-        claimed_reward=claimed, learning_event=learning_event, learning_applied=applied,
-        learning_rejection=rejection,
+        **base, graph=ex.graph, plan=ex.plan, trace=ex.trace, ground_truth_reward=ex.ground_truth_reward,
+        witness_events=ex.witness_events, agent_events=ex.agent_events, auth_decisions=ex.auth_decisions,
+        final_decisions=ex.final_decisions, false_claim_event_ids=ex.false_claim_event_ids, attacked=ex.attacked,
+        episode=ex.episode, acp_metrics=ex.acp_metrics, acp_reward=ex.acp_reward, claimed_reward=ex.claimed_reward,
+        learning_event=learning_event, learning_applied=applied, learning_rejection=rejection,
     )
 
 
@@ -358,9 +456,11 @@ def run_stream(
 __all__ = [
     "ORCHESTRATION_VERSION",
     "SIM_BASE_TIME",
+    "MissionExecution",
     "MissionRunRecord",
     "RunSettings",
     "World",
+    "execute_mission",
     "identity_roles",
     "mission_keys",
     "offer_learning_event",

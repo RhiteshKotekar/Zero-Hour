@@ -1,0 +1,39 @@
+# SAMG Assurance Control Plane policy (owner: Dev B).
+# Keys and values are a shared contract after G0; change via docs/DECISIONS.md.
+version: sec-v1
+
+# Ed25519 key derivation for simulated identities (see samg.assurance.identity).
+key_derivation: sha256-seed-v1
+
+# The independent witness: a separate identity that signs simulator task transitions.
+witness:
+  identity_id: WITNESS-0
+
+# Role -> event types that role may sign. Anything else is REJECTED: UNAUTHORISED_EVENT_TYPE.
+roles:
+  AGENT: [TASK_STARTED, TASK_COMPLETE_CLAIM, REWARD_CLAIM]
+  COORDINATOR: [TASK_STARTED, TASK_COMPLETE_CLAIM, REWARD_CLAIM, GRAPH_PATCH]
+  WITNESS: [WITNESS_TRANSITION]
+
+# Freshness (D016): the mission epoch + per-signer sequence is the primary barrier;
+# the timestamp is a secondary sanity check.
+freshness:
+  dedupe_key: [mission_id, epoch, signer_id, seq]
+  max_clock_skew_seconds: 5
+  max_event_age_seconds: 300
+
+# Corroboration of agent claims against witness events.
+corroboration:
+  # Witness event must be within this many seconds of the claim's issued_at.
+  evidence_tolerance_seconds: 30
+  # Relative tolerance when comparing claimed metrics with witness-derived metrics.
+  metric_relative_tolerance: 0.02
+
+# Episode admission.
+admission:
+  # Every reward-critical task needs a witness terminal state for ADMITTED.
+  require_witness_for_reward_critical: true
+  # A DISPUTED claim is quarantined; the episode may still be ADMITTED from witness evidence.
+  quarantine_disputed_claims: true
+  # Reward is always recomputed from admitted outcomes, never taken from a REWARD_CLAIM.
+  reward_source: ACP_RECOMPUTED

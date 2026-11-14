@@ -1,0 +1,94 @@
+{
+  "active_epoch": 1,
+  "agent_events": [
+    {
+      "agent_id": "A1",
+      "epoch": 1,
+      "event_id": "a1-claim-0",
+      "event_type": "TASK_COMPLETE_CLAIM",
+      "issued_at": "2026-01-01T00:00:02.600000Z",
+      "key_id": "A1#a69eb99b0d04",
+      "kind": "AGENT_EVENT",
+      "mission_id": "fx-mission-1",
+      "payload": {},
+      "schema_version": "evt-v1",
+      "seq": 0,
+      "signature": "MoSLpA-JybvtnX5Q-XpovqGCtOWHdy3L_mj-SJ5f0pqGGTBn_RXD-AmnIpDp6vvlrjaehnLkEiGwD9l_VDacDg==",
+      "task_id": "T2"
+    }
+  ],
+  "description": "Honest signed completion claim for T2 with matching witness events.",
+  "expected": {
+    "a1-claim-0": {
+      "auth": "AUTHENTICATED",
+      "corroboration": "CORROBORATED"
+    }
+  },
+  "golden": {
+    "event_id": "a1-claim-0",
+    "signature": "MoSLpA-JybvtnX5Q-XpovqGCtOWHdy3L_mj-SJ5f0pqGGTBn_RXD-AmnIpDp6vvlrjaehnLkEiGwD9l_VDacDg==",
+    "signed_payload_b64": "eyJhZ2VudF9pZCI6IkExIiwiZXBvY2giOjEsImV2ZW50X2lkIjoiYTEtY2xhaW0tMCIsImV2ZW50X3R5cGUiOiJUQVNLX0NPTVBMRVRFX0NMQUlNIiwiaXNzdWVkX2F0IjoiMjAyNi0wMS0wMVQwMDowMDowMi42MDAwMDArMDA6MDAiLCJrZXlfaWQiOiJBMSNhNjllYjk5YjBkMDQiLCJraW5kIjoiQUdFTlRfRVZFTlQiLCJtaXNzaW9uX2lkIjoiZngtbWlzc2lvbi0xIiwicGF5bG9hZCI6e30sInNjaGVtYV92ZXJzaW9uIjoiZXZ0LXYxIiwic2VxIjowLCJ0YXNrX2lkIjoiVDIifQ=="
+  },
+  "identities": [
+    {
+      "active": true,
+      "identity_id": "A0",
+      "key_id": "A0#46651bd16db7",
+      "public_key_b64": "zUoafwH261X-PzaO2YqpUNysm-kkYNokvv0dVI50AHU=",
+      "role": "COORDINATOR"
+    },
+    {
+      "active": true,
+      "identity_id": "A1",
+      "key_id": "A1#a69eb99b0d04",
+      "public_key_b64": "ylaJBpbA7Pe1Fv0hQxr_l5mz6UV0oc7TPHdwp7cEjXA=",
+      "role": "AGENT"
+    },
+    {
+      "active": true,
+      "identity_id": "WITNESS-0",
+      "key_id": "WITNESS-0#a62c2eb4c037",
+      "public_key_b64": "ngvoBEwmsyXkyP5aDDG32YJxK1BsXPZ5DDoEDdj9mT0=",
+      "role": "WITNESS"
+    }
+  ],
+  "seed": 7,
+  "witness_events": [
+    {
+      "epoch": 1,
+      "event_id": "w-0",
+      "event_type": "WITNESS_TRANSITION",
+      "from_state": "ASSIGNED",
+      "issued_at": "2026-01-01T00:00:01Z",
+      "key_id": "WITNESS-0#a62c2eb4c037",
+      "kind": "WITNESS_EVENT",
+      "mission_id": "fx-mission-1",
+      "payload": {},
+      "schema_version": "evt-v1",
+      "seq": 0,
+      "signature": "pY4h-OPMtQs_bTkYA_uGajWd6fwaQi3bax4aPSmDM4i9SOdOOMiRFahg-YxN-zoAU6YCs-wfRe2Uekr5Zx2mCA==",
+      "sim_time_ms": 1000,
+      "task_id": "T2",
+      "to_state": "EXECUTING",
+      "witness_id": "WITNESS-0"
+    },
+    {
+      "epoch": 1,
+      "event_id": "w-1",
+      "event_type": "WITNESS_TRANSITION",
+      "from_state": "EXECUTING",
+      "issued_at": "2026-01-01T00:00:02.500000Z",
+      "key_id": "WITNESS-0#a62c2eb4c037",
+      "kind": "WITNESS_EVENT",
+      "mission_id": "fx-mission-1",
+      "payload": {},
+      "schema_version": "evt-v1",
+      "seq": 1,
+      "signature": "JxQk9-L2_3kRwLAigdBU3pzECKE5CjH-lW_AB-37dENXxGgd0xiu9BJ2Z-fRFVYhIdcst9S0vV7yS7Q1KpOwAw==",
+      "sim_time_ms": 2500,
+      "task_id": "T2",
+      "to_state": "VERIFIED_COMPLETE",
+      "witness_id": "WITNESS-0"
+    }
+  ]
+}

@@ -1,1 +1,77 @@
 """Shared, implementation-independent SAMG domain contracts."""
+
+from samg.domain.config import (
+    AllocationConfig,
+    RewardConfig,
+    TopologyCostConfig,
+    config_hash,
+    load_allocation,
+    load_reward,
+    load_topology_costs,
+)
+from samg.domain.enums import (
+    AllocationFailure,
+    CapabilityMatch,
+    EdgeKind,
+    IneligibilityReason,
+    NodeKind,
+    PolicyMode,
+    SolverName,
+    TaskState,
+    TopologyName,
+)
+from samg.domain.execution import (
+    ExecutionTrace,
+    GroundTruthMetrics,
+    RewardBreakdown,
+    TaskOutcome,
+    TaskTransition,
+)
+from samg.domain.graph import (
+    AllocationPlan,
+    Assignment,
+    CoordinationGraph,
+    GraphEdge,
+    GraphNode,
+    Handoff,
+    ObjectiveTerms,
+    TopologyEligibility,
+)
+from samg.domain.mission import AgentProfile, MissionSpec, SamgModel, Scenario, TaskSpec
+
+__all__ = [
+    "AgentProfile",
+    "AllocationConfig",
+    "AllocationFailure",
+    "AllocationPlan",
+    "Assignment",
+    "CapabilityMatch",
+    "CoordinationGraph",
+    "EdgeKind",
+    "ExecutionTrace",
+    "GraphEdge",
+    "GraphNode",
+    "GroundTruthMetrics",
+    "Handoff",
+    "IneligibilityReason",
+    "MissionSpec",
+    "NodeKind",
+    "ObjectiveTerms",
+    "PolicyMode",
+    "RewardBreakdown",
+    "RewardConfig",
+    "SamgModel",
+    "Scenario",
+    "SolverName",
+    "TaskOutcome",
+    "TaskSpec",
+    "TaskState",
+    "TaskTransition",
+    "TopologyCostConfig",
+    "TopologyEligibility",
+    "TopologyName",
+    "config_hash",
+    "load_allocation",
+    "load_reward",
+    "load_topology_costs",
+]

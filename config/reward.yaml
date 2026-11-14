@@ -1,0 +1,10 @@
+# r = 0.65*C + 0.15*(1-T) + 0.10*(1-R) + 0.10*(1-H), clipped to [0, 1] (brief §7.2).
+# C: weighted completion; T: makespan/deadline; R: resource used/assigned agents' budget;
+# H: coordination cost / max coordination cost. Each term is clipped to [0, 1].
+version: reward-v1
+weights: {completion: 0.65, duration: 0.15, resources: 0.10, coordination: 0.10}
+alternatives:                # predeclared sensitivity sets (brief §12.9)
+  completion_heavy: {completion: 0.75, duration: 0.10, resources: 0.075, coordination: 0.075}
+  efficiency_heavy: {completion: 0.55, duration: 0.20, resources: 0.10, coordination: 0.15}
+failure_reward: 0.0
+failure_label: INVALID_PLAN

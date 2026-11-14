@@ -1,0 +1,14 @@
+# Allocation objective weights (minimised) and CP-SAT settings.
+version: alloc-v1
+weights:
+  makespan: 1.0              # simulated minutes
+  handoff_cost: 10.0         # graph-derived handoff cost units
+  resource_use: 0.0          # resource demand is task-fixed today; kept for future agent-specific costs
+  max_agent_load: 0.25       # busiest agent's total work minutes (load balance)
+  unserved_priority: 1000.0  # penalty per unit of priority left unassigned (optional tasks only)
+cpsat:
+  time_limit_s: 5.0
+  num_workers: 1             # 1 keeps CP-SAT deterministic
+  random_seed: 0
+  time_scale: 10             # float minutes x10, rounded to integers
+use_cpsat: true

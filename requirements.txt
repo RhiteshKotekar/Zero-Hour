@@ -1,4 +1,5 @@
 cryptography>=42.0
+hypothesis>=6.100
 matplotlib>=3.8
 networkx>=3.2
 numpy>=1.26
@@ -6,5 +7,6 @@ ortools>=9.10
 plotly>=5.22
 pydantic>=2.6
 pytest>=8.0
+PyYAML>=6.0
 SQLAlchemy>=2.0
 streamlit>=1.33

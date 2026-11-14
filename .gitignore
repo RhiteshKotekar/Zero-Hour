@@ -19,3 +19,8 @@ reports/
 .streamlit/secrets.toml
 .idea/
 .vscode/
+
+# Packaging metadata
+*.egg-info/
+build/
+dist/

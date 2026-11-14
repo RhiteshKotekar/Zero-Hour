@@ -66,8 +66,9 @@ def allocate_greedy(problem: AllocationProblem, *, fallback_used: bool = False) 
                     continue
                 ready_at = max([assigned[p].end + r.delay for p, r in zip(preds, routes)], default=0.0)
                 start = max(agent_free[agent_id], ready_at)
-                end = start + task.duration_ms
-                new_load = agent_load[agent_id] + task.duration_ms
+                duration = problem.effective_duration(task_id, agent_id)
+                end = start + duration
+                new_load = agent_load[agent_id] + duration
                 cost = (weights["makespan"] * (max(makespan, end) - makespan) / MINUTE_MS
                         + weights["handoff_cost"] * sum(r.cost for r in routes)
                         + weights["resource_use"] * task.resource_demand
@@ -95,7 +96,7 @@ def allocate_greedy(problem: AllocationProblem, *, fallback_used: bool = False) 
             remaining_capacity[agent_id] -= 1
             remaining_budget[agent_id] -= task.resource_demand
             agent_free[agent_id] = end
-            agent_load[agent_id] += task.duration_ms
+            agent_load[agent_id] += end - start
             makespan = max(makespan, end)
             max_load = max(max_load, agent_load[agent_id])
 

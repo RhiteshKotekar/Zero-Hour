@@ -40,6 +40,12 @@ class TopologyCostConfig(SamgModel):
     handoff_delay_ms_per_hop: float = Field(default=120_000.0, ge=0, description="Simulated ms added per hop.")
     hop_failure_probability: float = Field(default=0.02, ge=0, lt=1, description="Per-hop message loss in the simulator.")
     distributed_max_degree: int = Field(default=3, ge=1)
+    span_overhead: float = Field(
+        default=0.10,
+        ge=0,
+        description="Span-of-control cost (D031): an agent's task durations grow by this fraction per "
+        "coordination link beyond its first. 0 disables the rule.",
+    )
     sensitivity: dict[str, CostSetting] = Field(
         default_factory=lambda: {
             "low": CostSetting(h0=0.5, h1=0.25),

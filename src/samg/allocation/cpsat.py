@@ -14,7 +14,8 @@ precedence including graph-derived handoff delay, reachable handoff paths.
 Objective (integer-scaled): makespan, handoff cost, resource use, busiest-agent
 load and unserved optional priority, with weights from ``config/allocation.yaml``.
 
-Times are solved in units of ``time_unit_ms`` with durations and delays rounded
+Durations are per (task, agent): the span-of-control rule (D031) slows agents with
+many coordination links. Times are solved in units of ``time_unit_ms`` with durations and delays rounded
 UP, so the reported millisecond schedule (start + true duration) never violates
 precedence or overlap. A single worker plus a fixed seed keeps runs deterministic.
 """
@@ -54,10 +55,12 @@ def allocate_cpsat(problem: AllocationProblem) -> tuple[AllocationPlan | None, s
     weights = problem.config.weights
     agents = {a.agent_id: a for a in problem.scenario.agents}
     tasks = list(mission.tasks)
-    dur = {t.task_id: _units(t.duration_ms, unit) for t in tasks}
+    dur = {(t.task_id, a): _units(problem.effective_duration(t.task_id, a), unit)
+           for t in tasks for a in problem.eligible[t.task_id]}
+    longest = {t.task_id: max((dur[t.task_id, a] for a in problem.eligible[t.task_id]), default=0) for t in tasks}
 
     max_delay = _units(problem.costs.max_path_hops * problem.costs.handoff_delay_ms_per_hop, unit)
-    horizon = sum(dur.values()) + max_delay * max(1, len(mission.dependency_edges()))
+    horizon = sum(longest.values()) + max_delay * max(1, len(mission.dependency_edges()))
 
     model = cp_model.CpModel()
     x: dict[tuple[str, str], cp_model.IntVar] = {}
@@ -82,13 +85,12 @@ def allocate_cpsat(problem: AllocationProblem) -> tuple[AllocationPlan | None, s
 
     start = {t.task_id: model.new_int_var(0, horizon, f"s[{t.task_id}]") for t in tasks}
     end = {t.task_id: model.new_int_var(0, horizon, f"e[{t.task_id}]") for t in tasks}
-    for t in tasks:
-        model.add(end[t.task_id] == start[t.task_id] + dur[t.task_id])
-
     per_agent_intervals: dict[str, list] = {a: [] for a in agents}
     for (task_id, a), var in x.items():
+        # the task's end depends on who performs it (span-of-control, D031)
+        model.add(end[task_id] == start[task_id] + dur[task_id, a]).only_enforce_if(var)
         per_agent_intervals[a].append(model.new_optional_interval_var(
-            start[task_id], dur[task_id], end[task_id], var, f"iv[{task_id},{a}]"))
+            start[task_id], dur[task_id, a], end[task_id], var, f"iv[{task_id},{a}]"))
     for intervals in per_agent_intervals.values():
         if len(intervals) > 1:
             model.add_no_overlap(intervals)
@@ -117,9 +119,9 @@ def allocate_cpsat(problem: AllocationProblem) -> tuple[AllocationPlan | None, s
     makespan = model.new_int_var(0, horizon, "makespan")
     for t in tasks:
         model.add(makespan >= end[t.task_id]).only_enforce_if(run[t.task_id])
-    max_load = model.new_int_var(0, sum(dur.values()), "max_load")
+    max_load = model.new_int_var(0, sum(longest.values()), "max_load")
     for a in agents:
-        mine = [dur[task_id] * v for (task_id, aa), v in x.items() if aa == a]
+        mine = [dur[task_id, a] * v for (task_id, aa), v in x.items() if aa == a]
         if mine:
             model.add(max_load >= sum(mine))
 
@@ -147,7 +149,7 @@ def allocate_cpsat(problem: AllocationProblem) -> tuple[AllocationPlan | None, s
     if code in (cp_model.OPTIMAL, cp_model.FEASIBLE):
         assignments = [
             Assignment(task_id=task_id, agent_id=a, start=solver.value(start[task_id]) * unit,
-                       end=solver.value(start[task_id]) * unit + mission.task(task_id).duration_ms)
+                       end=solver.value(start[task_id]) * unit + problem.effective_duration(task_id, a))
             for (task_id, a), var in x.items() if solver.value(var)
         ]
         return feasible_plan(problem, assignments, SolverName.CP_SAT, status=status, runtime_ms=runtime_ms), status

@@ -18,7 +18,7 @@ The queue is worked in order, top to bottom. Each finished item that produces a 
 | 10 | done | A | Eligibility = topology builds **and** CP-SAT finds a feasible plan (new reason `ALLOCATION_INFEASIBLE`) — see R5 | `feasible_topologies` + D030; runner uses it (R6) |
 | 11 | queued | A | Real `MissionExecutor` over orchestration; run Experiments A/B on dev; tune `alpha` on dev only | Dev results table |
 | 12 | queued | A | Freeze `config/experiment.yaml` (hash), run held-out test; results table + §12.10 falsification checklist | Measured table, claims marked supported/not |
-| 13 | queued | A | Ablations §12.9: topology cost = 0; `h0/h1` low/base/high; `link_cost` 0 vs base (D021); two reward-weight sets | Sensitivity table; parameter-sensitivity verdict |
+| 13 | queued | A | Ablations §12.9 (+ `span_overhead` 0/0.05/0.10/0.20, D031): topology cost = 0; `h0/h1` low/base/high; `link_cost` 0 vs base (D021); two reward-weight sets | Sensitivity table; parameter-sensitivity verdict |
 | 14 | queued | A | Simulator hardening if item 7 is minimal: ground-truth oracle record, hop failures, jitter bounds, invalid-plan outcome | Simulator unit tests |
 | 15 | queued | A+B | Experiment C (S1 vs S2) on the demo's attack path; frozen attack config; FRR with denominators | Security table |
 | 16 | queued | A | Dashboard views 1–2 (Streamlit, thin over existing functions); CLI stays the fallback | Views render saved runs |
@@ -57,3 +57,13 @@ The queue is worked in order, top to bottom. Each finished item that produces a 
 - **Result:** new `samg.allocation.feasible_topologies` runs the allocator before an arm is offered. Generated scenario 16 is the regression case: DISTRIBUTED passes the old pairwise check, but CP-SAT proves no plan exists.
 - **Significance:** a policy can no longer pick an arm that is guaranteed to fail. Policies are compared only on arms that can actually be executed, and infeasibility is reported per topology rather than counted against whichever policy chose it.
 - **Architecture:** the eligibility contract moves from "structurally buildable" to "buildable and allocatable". Orchestration (Dev B or the demo agent) should call `feasible_topologies` and reuse the returned plan; `eligible_topologies` stays for structural checks. The Experiment A/B runner already uses the new function.
+
+### R7 — Topology landscape before learning (design seeds)
+- **Result:** with the cost model at that point, DISTRIBUTED was the best planned topology on ~90% of missions, with a mean margin of only ~0.013 reward. The h0/h1 settings flipped 5–8 of 216 missions; removing the D021 link cost flipped 2.
+- **Significance:** high. Experiment A would have shown no adaptive advantage, since P1 = "always distributed" is nearly optimal. The D021 link cost alone was too weak to create a trade-off.
+- **Architecture:** led to D031. Design analyses now use seeds ≥ 50 000 (`landscape.DESIGN_SEED_OFFSET`), which never overlap experiment seeds.
+
+### R8 — Span-of-control cost (D031)
+- **Result:** with `span_overhead = 0.10` (predeclared), the best-topology shares become DISTRIBUTED 56%, HIERARCHICAL 28%, FUNCTIONAL_CELL 16%. The winners vary within families as well. Sweep: 0 → 91/6/4 (D/H/F), 0.05 → 80/10/10, 0.20 → 35/41/24.
+- **Significance:** contextual selection now has something to learn. Margins stay small (~0.008 reward), so the Experiment A effect sizes will be modest and must be reported with confidence intervals and this sensitivity.
+- **Architecture:** task duration now depends on (task, agent, topology). This changes the allocator (per-agent intervals in CP-SAT), plan evaluation and the simulator, which must take its durations from the plan.

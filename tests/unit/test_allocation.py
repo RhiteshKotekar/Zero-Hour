@@ -42,7 +42,8 @@ def assert_plan_valid(problem: AllocationProblem, plan: AllocationPlan) -> None:
     for a in plan.assignments:
         task, agent = mission.task(a.task_id), scenario.agent(a.agent_id)
         assert agent.available and task.is_capable(agent)
-        assert a.end == pytest.approx(a.start + task.duration_ms)
+        assert a.end == pytest.approx(a.start + problem.effective_duration(a.task_id, a.agent_id))
+        assert problem.effective_duration(a.task_id, a.agent_id) >= task.duration_ms
         per_agent.setdefault(a.agent_id, []).append(a)
     for agent_id, items in per_agent.items():
         agent = scenario.agent(agent_id)

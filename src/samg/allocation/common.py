@@ -41,6 +41,18 @@ class AllocationProblem:
             raise ValueError("graph was built for a different mission")
         self.hops = HopTable(self.graph, self.costs)
         self.eligible = {t.task_id: eligible_agents(self.scenario, t) for t in self.scenario.mission.tasks}
+        self.degree = {a: 0 for a in self.hops.agents}
+        for a, b in self.hops.links:
+            self.degree[a] += 1
+            self.degree[b] += 1
+
+    def slowdown(self, agent_id: str) -> float:
+        """Span-of-control multiplier (D031): 1 + span_overhead per coordination link beyond the first."""
+        return 1.0 + self.costs.span_overhead * max(0, self.degree.get(agent_id, 0) - 1)
+
+    def effective_duration(self, task_id: str, agent_id: str) -> float:
+        """Task duration in ms when ``agent_id`` performs ``task_id`` under this topology."""
+        return self.mission.task(task_id).duration_ms * self.slowdown(agent_id)
 
     @property
     def mission(self):
@@ -70,7 +82,7 @@ def evaluate(problem: AllocationProblem, assignments: list[Assignment]) -> tuple
 
     load: dict[str, float] = {}
     for a in assignments:
-        load[a.agent_id] = load.get(a.agent_id, 0.0) + problem.mission.task(a.task_id).duration_ms
+        load[a.agent_id] = load.get(a.agent_id, 0.0) + problem.effective_duration(a.task_id, a.agent_id)
     terms = {
         "makespan": max((a.end for a in assignments), default=0.0) / MINUTE_MS,
         "handoff_cost": sum(h.cost for h in handoffs),

@@ -31,14 +31,18 @@ class SyntheticExecutor:
     def __init__(self) -> None:
         self.calls: list[tuple[str, TopologyName, str]] = []
 
+    @staticmethod
+    def reward_table(scenario: Scenario) -> dict[TopologyName, float]:
+        f = extract_features(scenario).as_dict()
+        return {
+            TopologyName.DISTRIBUTED: 0.2 + 1.5 * f["dependency_density"],
+            TopologyName.HIERARCHICAL: 1.2 - f["capability_heterogeneity"],
+            TopologyName.FUNCTIONAL_CELL: 0.5,
+        }
+
     def execute(self, scenario: Scenario, topology: TopologyName, *, seed: int, decision_id: str) -> MissionResult:
         self.calls.append((scenario.scenario_id, topology, decision_id))
-        f = extract_features(scenario).as_dict()
-        base = {
-            TopologyName.DISTRIBUTED: 0.3 + 0.6 * f["dependency_density"],
-            TopologyName.HIERARCHICAL: 0.7 - 0.4 * f["capability_heterogeneity"],
-            TopologyName.FUNCTIONAL_CELL: 0.5,
-        }[topology]
+        base = self.reward_table(scenario)[topology]
         reward = max(0.0, min(1.0, base + 0.01 * (seed % 3)))
         provisional = len(self.calls) % 5 == 0
         episode = EpisodeRecord(
@@ -95,8 +99,13 @@ def test_learners_update_only_from_admitted_and_never_at_test(result) -> None:
 
 
 def test_linucb_adapts_to_context(result) -> None:
-    """With a context-dependent synthetic reward, LinUCB should use more than one topology."""
+    """The synthetic best arm varies with context; LinUCB should follow it and beat the best fixed arm."""
+    best_arms = {max(SyntheticExecutor.reward_table(s).items(), key=lambda kv: kv[1])[0]
+                 for s, _ in build_splits(SMALL)["test"]}
+    assert len(best_arms) >= 2, "synthetic test set must have context-dependent optima"
     assert len(result.test["P3"].selection_counts) >= 2
+    assert result.test["P3"].reward.mean >= result.test["P1"].reward.mean
+    assert result.test["P3"].regret.mean <= result.test["P1"].regret.mean
 
 
 def test_comparisons_and_regret_are_paired(result) -> None:

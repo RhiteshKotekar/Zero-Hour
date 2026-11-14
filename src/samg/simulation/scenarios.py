@@ -9,7 +9,6 @@
 from __future__ import annotations
 
 import itertools
-from math import ceil
 from typing import Literal
 
 import numpy as np
@@ -180,9 +179,12 @@ def _critical_path(durations: list[float], deps: list[list[int]]) -> float:
 def generate_scenario(seed: int, factors: ScenarioFactors | None = None) -> Scenario:
     """Deterministic scenario for ``(seed, factors)``.
 
-    Guarantees: every task has a capable, available agent with enough budget,
-    and available agents' ``capacity`` sum to at least the task count.
-    Feasibility under each topology is checked by the evaluation runner, not here.
+    Guarantees: every task has a capable, available agent; capacities and budgets are
+    sized from a seeded reference assignment, so the mission is feasible under
+    hierarchical coordination. Resource pressure scales the budget headroom above
+    that reference (abundant 2.0x, moderate 1.3x, constrained 1.05x). Other
+    topologies may still be infeasible (e.g. distributed degree caps) - that is a
+    measured outcome, reported as infeasibility rate.
     """
     factors = factors or ScenarioFactors()
     rng = np.random.default_rng(seed)
@@ -223,10 +225,6 @@ def generate_scenario(seed: int, factors: ScenarioFactors | None = None) -> Scen
     available = [True] * n_workers
     if factors.availability == "one_unavailable":
         available[int(rng.integers(0, n_workers))] = False
-    if factors.availability == "uneven":
-        capacity = [int(rng.integers(1, 5)) for _ in range(n_workers)]
-    else:
-        capacity = [ceil(n_tasks / n_workers) + 2] * n_workers
 
     # coverage repair: each required capability is held by an available worker (same family preferred)
     live = [i for i in range(n_workers) if available[i]]
@@ -234,19 +232,34 @@ def generate_scenario(seed: int, factors: ScenarioFactors | None = None) -> Scen
         if not any(cap in agent_caps[i] for i in live):
             same_family = [i for i in live if roles[i] == _FAMILY_OF[cap]]
             agent_caps[(same_family or live)[0]].add(cap)
-    # task-count repair
-    while sum(capacity[i] for i in live) < n_tasks:
-        smallest = min(live, key=lambda i: (capacity[i], i))
-        capacity[smallest] += 1
 
-    # budgets: total = demand * pressure, split by seeded weights, then per-task repair
-    total = sum(demands) * _PRESSURE[factors.resources]
-    weights = rng.dirichlet(np.ones(n_workers))
-    budgets = [round(float(total * w), 1) for w in weights]
-    for t in range(n_tasks):
+    # Reference assignment (feasible by construction): each task, in a seeded order, goes to the
+    # capable live worker with the least reference load (ties by a seeded rank). Capacity and
+    # budget are then sized from it, so the mission is solvable under hierarchical coordination
+    # (every pair is <= 2 hops via the lead) for every factor setting (brief §3.4).
+    rank = {i: int(r) for i, r in zip(live, rng.permutation(len(live)))}
+    ref_tasks = [0] * n_workers
+    ref_demand = [0.0] * n_workers
+    for t in (int(x) for x in rng.permutation(n_tasks)):
         capable = [i for i in live if caps[t] in agent_caps[i]]
-        if max(budgets[i] for i in capable) < demands[t]:
-            budgets[capable[0]] = demands[t]
+        chosen = min(capable, key=lambda i: (ref_demand[i], ref_tasks[i], rank[i]))
+        ref_tasks[chosen] += 1
+        ref_demand[chosen] += demands[t]
+
+    # Capacity slack: uneven availability -> 0-2 spare task slots per agent, otherwise 1.
+    if factors.availability == "uneven":
+        slack = [int(rng.integers(0, 3)) for _ in range(n_workers)]
+    else:
+        slack = [1] * n_workers
+    capacity = [max(ref_tasks[i] + slack[i], 1) for i in range(n_workers)]
+
+    # Budget = reference demand x pressure; workers with no reference task get a small reserve.
+    pressure = _PRESSURE[factors.resources]
+    mean_demand = sum(demands) / n_tasks
+    budgets = [round(ref_demand[i] * pressure if ref_demand[i] else mean_demand * (pressure - 1.0) * 2, 1)
+               for i in range(n_workers)]
+    for i in range(n_workers):
+        budgets[i] = max(budgets[i], ref_demand[i])  # rounding never undercuts the reference plan
 
     agents = [_lead()]
     for i in range(n_workers):

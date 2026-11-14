@@ -168,13 +168,30 @@ def test_generated_scenarios_allocate_validly(index: int) -> None:
     factors: ScenarioFactors = factor_grid()[index]
     scenario = generate_scenario(1000 + index, factors)
     eligible, _ = eligible_topologies(scenario, COSTS)
+    assert TopologyName.HIERARCHICAL in eligible
     for topology in eligible:
         problem = _problem(scenario, topology)
         cp, _ = allocate_cpsat(problem)
         greedy = allocate_greedy(problem)
+        if topology is TopologyName.HIERARCHICAL:
+            # generator guarantee (feasible by construction via the lead hub)
+            assert cp is not None and cp.feasible, f"{factors.key()} infeasible under HIERARCHICAL"
         if cp is not None and cp.feasible:
             assert_plan_valid(problem, cp)
         if greedy.feasible:
             assert_plan_valid(problem, greedy)
             assert cp is not None and cp.feasible, "CP-SAT missed a solution greedy found"
             assert cp.objective.weighted_total <= greedy.objective.weighted_total + 1e-6
+
+
+@pytest.mark.slow
+def test_generated_missions_are_mostly_feasible() -> None:
+    """Guards the generator: most (scenario, topology) pairs must be solvable, or experiments are meaningless."""
+    total = feasible = 0
+    for index, factors in enumerate(factor_grid()[::4]):
+        scenario = generate_scenario(5000 + index, factors)
+        for topology in eligible_topologies(scenario, COSTS)[0]:
+            cp, _ = allocate_cpsat(_problem(scenario, topology))
+            total += 1
+            feasible += bool(cp is not None and cp.feasible)
+    assert feasible / total >= 0.9, f"only {feasible}/{total} feasible"

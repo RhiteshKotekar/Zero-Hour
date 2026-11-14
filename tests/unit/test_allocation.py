@@ -195,3 +195,17 @@ def test_generated_missions_are_mostly_feasible() -> None:
             total += 1
             feasible += bool(cp is not None and cp.feasible)
     assert feasible / total >= 0.9, f"only {feasible}/{total} feasible"
+
+
+def test_feasible_topologies_excludes_arms_without_a_feasible_plan() -> None:
+    """D030: generated scenario 16 passes pairwise reachability for DISTRIBUTED but no plan exists."""
+    from samg.allocation import feasible_topologies
+    from samg.domain import IneligibilityReason
+
+    scenario = generate_scenario(16, factor_grid()[16])
+    assert TopologyName.DISTRIBUTED in eligible_topologies(scenario, COSTS)[0]
+    eligible, verdicts, plans = feasible_topologies(scenario, COSTS, CONFIG)
+    assert TopologyName.DISTRIBUTED not in eligible
+    assert verdicts[TopologyName.DISTRIBUTED].reasons == (IneligibilityReason.ALLOCATION_INFEASIBLE,)
+    assert TopologyName.HIERARCHICAL in eligible
+    assert set(plans) == set(eligible) and all(p.feasible for _, p in plans.values())

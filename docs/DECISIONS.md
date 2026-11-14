@@ -237,3 +237,9 @@ Extends D004. Details are in [SECURITY_MODEL.md](SECURITY_MODEL.md#offline-train
 - **Not in the hackathon.** Experiment E results are not part of the hackathon results tables or demo.
 
 **Why:** The team chose CP-SAT for A–C. The paper's own result at small sizes is parity with an exact solver, so any neural claim must come from a separate measurement (§12.10, §17.1).
+
+## D030 — Topology eligibility includes allocation feasibility (2026-11-14)
+
+**Decision:** A topology is offered to a policy only if it can be built (`eligible_topologies`, unchanged) **and** the allocator finds a feasible plan for it. `samg.allocation.feasible_topologies(scenario, costs, config)` returns the eligible arms, a verdict per arm (new reason `IneligibilityReason.ALLOCATION_INFEASIBLE`, with the allocator's reason codes in `detail`) and the `(graph, plan)` per eligible arm, so orchestration can reuse the plan instead of solving twice. `eligible_topologies` keeps its signature for callers that only need the structural check.
+
+**Why:** After the generator fix (R5 in `WORK_QUEUE.md`), 10/643 scenario×topology pairs passed structural eligibility but had no feasible plan (all DISTRIBUTED, where the degree cap removes a needed path). Offering such an arm makes a policy pay an infeasible outcome it could have avoided. Feasibility is known before execution, so it does not leak outcome information. Brief §12.8 still requires reporting the infeasibility rate: it is now reported per topology as ineligibility, not as a selected-arm failure.

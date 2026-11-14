@@ -41,10 +41,10 @@ from samg.domain import (
 )
 from samg.domain.config import load_config
 from samg.evaluation.metrics import PairedComparison, Summary, oracle_regret, paired_comparison, summarize
+from samg.allocation import feasible_topologies
 from samg.learning import best_fixed_from_training, make_policy
 from samg.learning.base import PolicyDecision, TopologyPolicy
 from samg.simulation.scenarios import generate_scenario, seed_splits, split_factor_combos
-from samg.topology import eligible_topologies
 
 PERFORMANCE_POLICIES = ("P0-H", "P0-F", "P0-D", "P1", "P2", "P3")
 FIXED = {"P0-H": TopologyName.HIERARCHICAL, "P0-F": TopologyName.FUNCTIONAL_CELL,
@@ -197,7 +197,8 @@ class _Runner:
 
     def eligible(self, scenario: Scenario) -> list[TopologyName]:
         if scenario.scenario_id not in self._eligible_cache:
-            self._eligible_cache[scenario.scenario_id] = eligible_topologies(scenario, self.costs)[0]
+            # D030: an arm is offered only if a feasible plan exists for it.
+            self._eligible_cache[scenario.scenario_id] = feasible_topologies(scenario, self.costs)[0]
         return self._eligible_cache[scenario.scenario_id]
 
     def step(self, *, split: str, name: str, policy: TopologyPolicy, step: int, scenario: Scenario,

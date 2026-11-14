@@ -33,7 +33,7 @@ class AgentProfile(SamgModel):
     agent_id: str = Field(min_length=1)
     role: str = Field(min_length=1, description="Primary role / capability family; drives functional cells.")
     capabilities: tuple[str, ...]
-    max_tasks: int = Field(ge=0, description="Maximum number of tasks this agent may take in one mission.")
+    capacity: int = Field(ge=0, description="Maximum number of tasks this agent may take in one mission.")
     resource_budget: float = Field(ge=0, description="Resource units available for the mission.")
     can_coordinate: bool = False
     is_mission_lead: bool = False
@@ -50,9 +50,9 @@ class TaskSpec(SamgModel):
     name: str = ""
     required_capabilities: tuple[str, ...] = Field(min_length=1)
     capability_match: CapabilityMatch = CapabilityMatch.ALL
-    duration: float = Field(gt=0, description="Nominal execution time in simulated minutes.")
+    duration_ms: float = Field(gt=0, description="Nominal execution time in simulated milliseconds.")
     resource_demand: float = Field(ge=0)
-    priority: float = Field(default=1.0, gt=0, description="Weight in the weighted completion fraction C.")
+    priority_weight: float = Field(default=1.0, gt=0, description="Weight in the weighted completion fraction C.")
     mandatory: bool = True
     reward_critical: bool = True
     dependencies: tuple[str, ...] = ()
@@ -80,9 +80,9 @@ class MissionSpec(SamgModel):
     schema_version: str = MISSION_SCHEMA_VERSION
     mission_id: str = Field(min_length=1)
     epoch: int = Field(default=0, ge=0)
-    scenario_id: str = Field(min_length=1)
+    scenario_id: str = ""
     tasks: tuple[TaskSpec, ...] = Field(min_length=1)
-    deadline: float = Field(gt=0, description="Simulated minutes; T is normalised against it.")
+    deadline_ms: float = Field(gt=0, description="Simulated milliseconds; T is normalised against it.")
     generator_version: str = "manual"
     generator_params: dict[str, Any] = Field(default_factory=dict)
     family: str | None = Field(default=None, description="Reporting label only; never a policy feature.")
@@ -147,15 +147,31 @@ class Scenario(SamgModel):
     seed: int
     mission: MissionSpec
     agents: tuple[AgentProfile, ...] = Field(min_length=1)
+    permitted_links: tuple[tuple[str, str], ...] | None = Field(
+        default=None,
+        description="Directed physical/policy links (NetworkState). None = every pair may link. "
+        "A topology may only use links permitted in both directions.",
+    )
 
     @model_validator(mode="after")
     def _validate_agents(self) -> Scenario:
         ids = [a.agent_id for a in self.agents]
         if len(ids) != len(set(ids)):
             raise ValueError("agent IDs must be unique")
-        if self.mission.scenario_id != self.scenario_id:
+        if self.mission.scenario_id and self.mission.scenario_id != self.scenario_id:
             raise ValueError("mission.scenario_id must match scenario_id")
+        known = set(ids)
+        for a, b in self.permitted_links or ():
+            if a not in known or b not in known or a == b:
+                raise ValueError(f"permitted link {a}->{b} must join two different known agents")
         return self
+
+    def link_permitted(self, a: str, b: str) -> bool:
+        """Whether an undirected coordination link a<->b is physically/policy permitted."""
+        if self.permitted_links is None:
+            return True
+        links = set(self.permitted_links)
+        return (a, b) in links and (b, a) in links
 
     def agent(self, agent_id: str) -> AgentProfile:
         for a in self.agents:

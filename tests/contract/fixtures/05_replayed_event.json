@@ -1,0 +1,113 @@
+{
+  "active_epoch": 1,
+  "agent_events": [
+    {
+      "agent_id": "A1",
+      "epoch": 1,
+      "event_id": "a1-claim-0",
+      "event_type": "TASK_COMPLETE_CLAIM",
+      "issued_at": "2026-01-01T00:00:02.600000Z",
+      "key_id": "A1#a69eb99b0d04",
+      "kind": "AGENT_EVENT",
+      "mission_id": "fx-mission-1",
+      "payload": {},
+      "schema_version": "evt-v1",
+      "seq": 0,
+      "signature": "MoSLpA-JybvtnX5Q-XpovqGCtOWHdy3L_mj-SJ5f0pqGGTBn_RXD-AmnIpDp6vvlrjaehnLkEiGwD9l_VDacDg==",
+      "task_id": "T2"
+    },
+    {
+      "agent_id": "A1",
+      "epoch": 1,
+      "event_id": "a1-claim-0",
+      "event_type": "TASK_COMPLETE_CLAIM",
+      "issued_at": "2026-01-01T00:00:02.600000Z",
+      "key_id": "A1#a69eb99b0d04",
+      "kind": "AGENT_EVENT",
+      "mission_id": "fx-mission-1",
+      "payload": {},
+      "schema_version": "evt-v1",
+      "seq": 0,
+      "signature": "MoSLpA-JybvtnX5Q-XpovqGCtOWHdy3L_mj-SJ5f0pqGGTBn_RXD-AmnIpDp6vvlrjaehnLkEiGwD9l_VDacDg==",
+      "task_id": "T2"
+    },
+    {
+      "agent_id": "A1",
+      "epoch": 1,
+      "event_id": "a1-claim-0b",
+      "event_type": "TASK_COMPLETE_CLAIM",
+      "issued_at": "2026-01-01T00:00:02.600000Z",
+      "key_id": "A1#a69eb99b0d04",
+      "kind": "AGENT_EVENT",
+      "mission_id": "fx-mission-1",
+      "payload": {},
+      "schema_version": "evt-v1",
+      "seq": 0,
+      "signature": "Pds_cAxBnPRm6QH0hQQFylsMB20RNd3wqhr2JG0m25DTH0V8dGnxE_qQSeP-1Ua41PdLgsqMnHXfUjdmvRgFBA==",
+      "task_id": "T1"
+    },
+    {
+      "agent_id": "A1",
+      "epoch": 0,
+      "event_id": "a1-old-epoch",
+      "event_type": "TASK_COMPLETE_CLAIM",
+      "issued_at": "2026-01-01T00:00:02.600000Z",
+      "key_id": "A1#a69eb99b0d04",
+      "kind": "AGENT_EVENT",
+      "mission_id": "fx-mission-1",
+      "payload": {},
+      "schema_version": "evt-v1",
+      "seq": 5,
+      "signature": "9L86LVMtkv2ZnGDRXG2VryqzUfd7VAY4kK8xnHv6bKbbnvNXW3AomrR0A0KRajTiDXHjwkSf6T8-qYUpzdtaAQ==",
+      "task_id": "T2"
+    }
+  ],
+  "description": "Replay cases, processed in order: original, exact resend, new event id reusing seq 0, and a correctly signed event from an obsolete epoch.",
+  "expected_in_order": [
+    {
+      "event_id": "a1-claim-0",
+      "reason": null,
+      "status": "AUTHENTICATED"
+    },
+    {
+      "event_id": "a1-claim-0",
+      "reason": "DUPLICATE_EVENT_ID",
+      "status": "DUPLICATE"
+    },
+    {
+      "event_id": "a1-claim-0b",
+      "reason": "DUPLICATE_SEQUENCE",
+      "status": "DUPLICATE"
+    },
+    {
+      "event_id": "a1-old-epoch",
+      "reason": "OBSOLETE_EPOCH",
+      "status": "STALE"
+    }
+  ],
+  "identities": [
+    {
+      "active": true,
+      "identity_id": "A0",
+      "key_id": "A0#46651bd16db7",
+      "public_key_b64": "zUoafwH261X-PzaO2YqpUNysm-kkYNokvv0dVI50AHU=",
+      "role": "COORDINATOR"
+    },
+    {
+      "active": true,
+      "identity_id": "A1",
+      "key_id": "A1#a69eb99b0d04",
+      "public_key_b64": "ylaJBpbA7Pe1Fv0hQxr_l5mz6UV0oc7TPHdwp7cEjXA=",
+      "role": "AGENT"
+    },
+    {
+      "active": true,
+      "identity_id": "WITNESS-0",
+      "key_id": "WITNESS-0#a62c2eb4c037",
+      "public_key_b64": "ngvoBEwmsyXkyP5aDDG32YJxK1BsXPZ5DDoEDdj9mT0=",
+      "role": "WITNESS"
+    }
+  ],
+  "seed": 7,
+  "witness_events": []
+}

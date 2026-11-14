@@ -25,11 +25,11 @@ def capability_node(capability: str) -> str:
 
 
 def eligible_agents(scenario: Scenario, task: TaskSpec) -> list[str]:
-    """Available agents that can take ``task`` at all (capability, max_tasks, budget), sorted by ID."""
+    """Available agents that can take ``task`` at all (capability, capacity, budget), sorted by ID."""
     return sorted(
         a.agent_id
         for a in scenario.available_agents()
-        if a.max_tasks > 0 and a.resource_budget >= task.resource_demand and task.is_capable(a)
+        if a.capacity > 0 and a.resource_budget >= task.resource_demand and task.is_capable(a)
     )
 
 
@@ -38,15 +38,15 @@ def base_graph(scenario: Scenario) -> tuple[list[GraphNode], list[GraphEdge]]:
     mission = scenario.mission
     nodes: list[GraphNode] = [
         GraphNode(node_id=mission_node(mission.mission_id), kind=NodeKind.MISSION,
-                  attrs={"deadline": mission.deadline, "epoch": mission.epoch}),
+                  attrs={"deadline_ms": mission.deadline_ms, "epoch": mission.epoch}),
     ]
     edges: list[GraphEdge] = []
     capabilities: set[str] = set()
 
     for task in mission.tasks:
         nodes.append(GraphNode(node_id=task_node(task.task_id), kind=NodeKind.TASK, attrs={
-            "duration": task.duration, "resource_demand": task.resource_demand,
-            "priority": task.priority, "mandatory": task.mandatory,
+            "duration_ms": task.duration_ms, "resource_demand": task.resource_demand,
+            "priority_weight": task.priority_weight, "mandatory": task.mandatory,
             "capability_match": task.capability_match.value,
         }))
         edges.append(GraphEdge(source=mission_node(mission.mission_id), target=task_node(task.task_id),
@@ -63,7 +63,7 @@ def base_graph(scenario: Scenario) -> tuple[list[GraphNode], list[GraphEdge]]:
         capabilities.update(agent.capabilities)
         nodes.append(GraphNode(node_id=agent.agent_id, kind=NodeKind.AGENT, attrs={
             "role": agent.role, "available": agent.available, "can_coordinate": agent.can_coordinate,
-            "is_mission_lead": agent.is_mission_lead, "max_tasks": agent.max_tasks,
+            "is_mission_lead": agent.is_mission_lead, "capacity": agent.capacity,
             "resource_budget": agent.resource_budget, "capabilities": list(agent.capabilities),
         }))
 

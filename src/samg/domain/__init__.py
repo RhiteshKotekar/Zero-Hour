@@ -1,5 +1,15 @@
-"""Shared, implementation-independent SAMG domain contracts."""
+"""Shared, implementation-independent SAMG domain contracts.
 
+Frozen after gate G0 (H2). Changes need a ``docs/DECISIONS.md`` entry.
+"""
+
+from samg.domain.canonical import (
+    CANONICAL_VERSION,
+    CanonicalisationError,
+    canonical_bytes,
+    canonical_hash,
+    canonical_json,
+)
 from samg.domain.config import (
     AllocationConfig,
     RewardConfig,
@@ -13,12 +23,27 @@ from samg.domain.enums import (
     AllocationFailure,
     CapabilityMatch,
     EdgeKind,
+    EpisodeStatus,
+    EventStatus,
+    EventType,
+    IdentityRole,
     IneligibilityReason,
     NodeKind,
     PolicyMode,
+    ReasonCode,
+    RewardSource,
     SolverName,
     TaskState,
     TopologyName,
+)
+from samg.domain.events import (
+    EVENT_SCHEMA_VERSION,
+    AgentEvent,
+    EpisodeRecord,
+    EventDecision,
+    IneligibleLearningEvent,
+    LearningEvent,
+    WitnessEvent,
 )
 from samg.domain.execution import (
     ExecutionTrace,
@@ -40,26 +65,40 @@ from samg.domain.graph import (
 from samg.domain.mission import AgentProfile, MissionSpec, SamgModel, Scenario, TaskSpec
 
 __all__ = [
+    "CANONICAL_VERSION",
+    "EVENT_SCHEMA_VERSION",
+    "AgentEvent",
     "AgentProfile",
     "AllocationConfig",
     "AllocationFailure",
     "AllocationPlan",
     "Assignment",
+    "CanonicalisationError",
     "CapabilityMatch",
     "CoordinationGraph",
     "EdgeKind",
+    "EpisodeRecord",
+    "EpisodeStatus",
+    "EventDecision",
+    "EventStatus",
+    "EventType",
     "ExecutionTrace",
     "GraphEdge",
     "GraphNode",
     "GroundTruthMetrics",
     "Handoff",
+    "IdentityRole",
     "IneligibilityReason",
+    "IneligibleLearningEvent",
+    "LearningEvent",
     "MissionSpec",
     "NodeKind",
     "ObjectiveTerms",
     "PolicyMode",
+    "ReasonCode",
     "RewardBreakdown",
     "RewardConfig",
+    "RewardSource",
     "SamgModel",
     "Scenario",
     "SolverName",
@@ -70,6 +109,10 @@ __all__ = [
     "TopologyCostConfig",
     "TopologyEligibility",
     "TopologyName",
+    "WitnessEvent",
+    "canonical_bytes",
+    "canonical_hash",
+    "canonical_json",
     "config_hash",
     "load_allocation",
     "load_reward",

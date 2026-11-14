@@ -1,15 +1,18 @@
 """The three deterministic topology templates (brief §5.3).
 
-- Hierarchical: one coordinator (mission lead preferred) linked to every other
-  available agent; all other pairs route through it.
-- Functional-cell: available non-lead agents are grouped into cells by ``role``;
+- Hierarchical: one hub coordinator (mission lead preferred, else the first
+  coordinator-eligible agent by ID) linked to every other available agent; all
+  other pairs route through it.
+- Functional-cell: available non-hub agents are grouped into cells by ``role``;
   members of a cell are directly linked; each cell coordinator links to the
-  mission lead. Cross-cell handoffs route coordinator -> lead -> coordinator.
+  hub (the mission lead when present). Cross-cell handoffs route
+  coordinator -> hub -> coordinator.
 - Distributed: for each dependency edge, link eligible agents of the
   prerequisite to eligible agents of the dependent, in sorted order, skipping
   a link if either endpoint already has ``distributed_max_degree`` links.
 
-Ties are always broken by agent ID. No randomness is used.
+Every template only uses links permitted by ``Scenario.permitted_links`` (the
+physical/policy network). Ties are always broken by agent ID. No randomness.
 """
 
 from __future__ import annotations
@@ -36,41 +39,49 @@ def _norm(a: str, b: str) -> Link:
     return (a, b) if a < b else (b, a)
 
 
+def _hub(scenario: Scenario) -> str | None:
+    """Coordinator for hierarchical / cell hub: mission lead preferred, then any coordinator, by ID."""
+    candidates = sorted((a for a in scenario.available_agents() if a.can_coordinate),
+                        key=lambda a: (not a.is_mission_lead, a.agent_id))
+    return candidates[0].agent_id if candidates else None
+
+
+def _permitted(scenario: Scenario, links: set[Link]) -> set[Link]:
+    return {link for link in links if scenario.link_permitted(*link)}
+
+
 def _hierarchical(scenario: Scenario) -> tuple[set[Link], dict, IneligibilityReason | None]:
-    active = [a for a in scenario.available_agents()]
-    candidates = sorted((a for a in active if a.can_coordinate), key=lambda a: (not a.is_mission_lead, a.agent_id))
-    if not candidates:
+    hub = _hub(scenario)
+    if hub is None:
         return set(), {}, IneligibilityReason.NO_COORDINATOR
-    hub = candidates[0].agent_id
-    links = {_norm(hub, a.agent_id) for a in active if a.agent_id != hub}
-    return links, {"coordinators": (hub,)}, None
+    links = {_norm(hub, a.agent_id) for a in scenario.available_agents() if a.agent_id != hub}
+    return _permitted(scenario, links), {"coordinators": (hub,)}, None
 
 
 def _functional_cell(scenario: Scenario) -> tuple[set[Link], dict, IneligibilityReason | None]:
-    active = scenario.available_agents()
-    leads = sorted(a.agent_id for a in active if a.is_mission_lead)
-    if not leads:
-        return set(), {}, IneligibilityReason.NO_MISSION_LEAD
-    lead = leads[0]
+    hub = _hub(scenario)
+    if hub is None:
+        return set(), {}, IneligibilityReason.NO_COORDINATOR
     members: dict[str, list] = defaultdict(list)
-    for agent in active:
-        if agent.agent_id != lead:
+    for agent in scenario.available_agents():
+        if agent.agent_id != hub:
             members[agent.role].append(agent)
     links: set[Link] = set()
-    cells: dict[str, tuple[str, ...]] = {"lead": (lead,)}
-    cell_coordinators: dict[str, str] = {"lead": lead}
+    cells: dict[str, tuple[str, ...]] = {"hub": (hub,)}
+    cell_coordinators: dict[str, str] = {"hub": hub}
     for role in sorted(members):
         group = sorted(members[role], key=lambda a: (not a.can_coordinate, a.agent_id))
         ids = sorted(a.agent_id for a in group)
         coordinator = group[0].agent_id
         cells[role] = tuple(ids)
         cell_coordinators[role] = coordinator
-        links.add(_norm(coordinator, lead))
+        links.add(_norm(coordinator, hub))
         for i, a in enumerate(ids):
             for b in ids[i + 1:]:
                 links.add(_norm(a, b))
     coordinators = tuple(sorted(set(cell_coordinators.values())))
-    return links, {"coordinators": coordinators, "cells": cells, "cell_coordinators": cell_coordinators}, None
+    extra = {"coordinators": coordinators, "cells": cells, "cell_coordinators": cell_coordinators}
+    return _permitted(scenario, links), extra, None
 
 
 def _distributed(scenario: Scenario, costs: TopologyCostConfig) -> tuple[set[Link], dict, IneligibilityReason | None]:
@@ -82,7 +93,7 @@ def _distributed(scenario: Scenario, costs: TopologyCostConfig) -> tuple[set[Lin
         targets = eligible_agents(scenario, mission.task(dependent))
         for a in sources:
             for b in targets:
-                if a == b:
+                if a == b or not scenario.link_permitted(a, b):
                     continue
                 link = _norm(a, b)
                 if link in links:

@@ -29,16 +29,16 @@ def _graph(topology: TopologyName, scenario: Scenario | None = None):
 def _two_agent_scenario(*, linkable: bool) -> Scenario:
     """Fixture-1/2 shape: two agents, two dependent tasks needing different agents."""
     agents = (
-        AgentProfile(agent_id="X", role="alpha", capabilities=["a"], max_tasks=1, resource_budget=5,
+        AgentProfile(agent_id="X", role="alpha", capabilities=["a"], capacity=1, resource_budget=5,
                      can_coordinate=True, is_mission_lead=linkable, public_key_id="kx"),
-        AgentProfile(agent_id="Y", role="beta", capabilities=["b"], max_tasks=1, resource_budget=5,
+        AgentProfile(agent_id="Y", role="beta", capabilities=["b"], capacity=1, resource_budget=5,
                      public_key_id="ky"),
     )
     tasks = (
-        TaskSpec(task_id="t1", required_capabilities=["a"], duration=5, resource_demand=1),
-        TaskSpec(task_id="t2", required_capabilities=["b"], duration=5, resource_demand=1, dependencies=["t1"]),
+        TaskSpec(task_id="t1", required_capabilities=["a"], duration_ms=5, resource_demand=1),
+        TaskSpec(task_id="t2", required_capabilities=["b"], duration_ms=5, resource_demand=1, dependencies=["t1"]),
     )
-    mission = MissionSpec(mission_id="m2", scenario_id="s2", tasks=tasks, deadline=30)
+    mission = MissionSpec(mission_id="m2", scenario_id="s2", tasks=tasks, deadline_ms=30)
     return Scenario(scenario_id="s2", seed=0, mission=mission, agents=agents)
 
 
@@ -89,7 +89,7 @@ def test_route_cost_and_delay_follow_config() -> None:
     table = HopTable(_graph(TopologyName.HIERARCHICAL), COSTS)
     route = table.route("A1", "A4")
     assert route.cost == pytest.approx(COSTS.h0 + 2 * COSTS.h1)
-    assert route.delay == pytest.approx(2 * COSTS.handoff_delay_per_hop)
+    assert route.delay == pytest.approx(2 * COSTS.handoff_delay_ms_per_hop)
     assert table.route("A4", "A4").cost == 0
 
 
@@ -109,9 +109,26 @@ def test_no_coordinator_makes_hierarchical_ineligible() -> None:
     assert verdict.reasons == (IneligibilityReason.NO_COORDINATOR,)
 
 
-def test_no_lead_makes_functional_cell_ineligible() -> None:
-    verdict, _ = build_graph(_two_agent_scenario(linkable=False), TopologyName.FUNCTIONAL_CELL, COSTS)
-    assert verdict.reasons == (IneligibilityReason.NO_MISSION_LEAD,)
+def test_functional_cell_without_lead_uses_coordinator_hub() -> None:
+    verdict, graph = build_graph(_two_agent_scenario(linkable=False), TopologyName.FUNCTIONAL_CELL, COSTS)
+    assert verdict.eligible
+    assert graph.cell_coordinators["hub"] == "X"
+    assert graph.coordination_links() == [("X", "Y")]
+
+
+def test_functional_cell_without_any_coordinator_is_ineligible() -> None:
+    scenario = _two_agent_scenario(linkable=False)
+    agents = tuple(a.model_copy(update={"can_coordinate": False}) for a in scenario.agents)
+    verdict, _ = build_graph(scenario.model_copy(update={"agents": agents}), TopologyName.FUNCTIONAL_CELL, COSTS)
+    assert verdict.reasons == (IneligibilityReason.NO_COORDINATOR,)
+
+
+@pytest.mark.parametrize("topology", list(TopologyName))
+def test_unpermitted_network_links_are_never_used(topology: TopologyName) -> None:
+    scenario = _two_agent_scenario(linkable=True).model_copy(update={"permitted_links": ()})
+    verdict, graph = build_graph(scenario, topology, COSTS)
+    assert not verdict.eligible and graph is None
+    assert verdict.reasons == (IneligibilityReason.UNREACHABLE_DEPENDENCY,)
 
 
 def test_unreachable_dependency_is_recorded() -> None:
@@ -144,4 +161,4 @@ def test_max_coordination_cost_bounds_actual_cost() -> None:
 def test_networkx_view_has_typed_nodes() -> None:
     g = to_networkx(_graph(TopologyName.HIERARCHICAL))
     kinds = {data["kind"] for _, data in g.nodes(data=True)}
-    assert kinds == {"mission", "task", "capability", "agent"}
+    assert kinds == {"MISSION", "TASK", "CAPABILITY", "AGENT"}

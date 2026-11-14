@@ -5,7 +5,7 @@ h0: 1.0
 h1: 0.5
 link_cost: 0.25              # per undirected coordination link the topology maintains (proposed D019)
 max_path_hops: 4             # longer paths count as "no permitted path"
-handoff_delay_per_hop: 2.0   # simulated minutes added per hop before the dependent task may start
+handoff_delay_ms_per_hop: 120000.0  # simulated ms (2 min) added per hop before the dependent task may start
 hop_failure_probability: 0.02
 distributed_max_degree: 3
 sensitivity:                 # predeclared low/base/high settings (brief §12.9)

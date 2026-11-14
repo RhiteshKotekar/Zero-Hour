@@ -60,7 +60,7 @@ class HopTable:
         if hops > self.costs.max_path_hops:
             return None
         return PairRoute(hops=hops, path=path, cost=self.costs.handoff_cost(hops),
-                         delay=hops * self.costs.handoff_delay_per_hop)
+                         delay=hops * self.costs.handoff_delay_ms_per_hop)
 
     def link_maintenance_cost(self) -> float:
         return self.costs.link_cost * len(self.links)

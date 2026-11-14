@@ -18,16 +18,17 @@ from pydantic import BaseModel, ConfigDict
 from samg.domain import AgentProfile, CapabilityMatch, MissionSpec, Scenario, TaskSpec
 
 JUDGE_SCENARIO_ID = "judge-inspect-repair-v1"
+MINUTE_MS = 60_000.0
 GENERATOR_VERSION = "gen-v1"
 
 
-def _agent(agent_id: str, role: str, caps: list[str], max_tasks: int, budget: float, *,
+def _agent(agent_id: str, role: str, caps: list[str], capacity: int, budget: float, *,
            coord: bool = False, lead: bool = False, available: bool = True) -> AgentProfile:
     return AgentProfile(
         agent_id=agent_id,
         role=role,
         capabilities=caps,
-        max_tasks=max_tasks,
+        capacity=capacity,
         resource_budget=budget,
         can_coordinate=coord,
         is_mission_lead=lead,
@@ -55,7 +56,7 @@ def judge_agents() -> tuple[AgentProfile, ...]:
 
 
 def judge_tasks() -> tuple[TaskSpec, ...]:
-    """Tasks T1-T8 (brief §3.3). "a / b" capabilities are any-of."""
+    """Tasks T1-T8 (brief §3.3). "a / b" capabilities are any-of. Durations below are minutes."""
     any_, all_ = CapabilityMatch.ANY, CapabilityMatch.ALL
     rows = [
         # id, name, caps, match, duration, demand, priority, deps
@@ -70,19 +71,19 @@ def judge_tasks() -> tuple[TaskSpec, ...]:
     ]
     return tuple(
         TaskSpec(task_id=tid, name=name, required_capabilities=caps, capability_match=match,
-                 duration=dur, resource_demand=demand, priority=prio, dependencies=deps)
+                 duration_ms=dur * MINUTE_MS, resource_demand=demand, priority_weight=prio, dependencies=deps)
         for tid, name, caps, match, dur, demand, prio, deps in rows
     )
 
 
 def judge_scenario(seed: int = 0) -> Scenario:
     tasks = judge_tasks()
-    serial = sum(t.duration for t in tasks)
+    serial = sum(t.duration_ms for t in tasks)
     mission = MissionSpec(
         mission_id="M-judge-001",
         scenario_id=JUDGE_SCENARIO_ID,
         tasks=tasks,
-        deadline=round(serial * 1.5, 1),
+        deadline_ms=round(serial * 1.5, 1),
         generator_version="manual-judge-v1",
         family="judge_demo",
     )
@@ -180,7 +181,7 @@ def generate_scenario(seed: int, factors: ScenarioFactors | None = None) -> Scen
     """Deterministic scenario for ``(seed, factors)``.
 
     Guarantees: every task has a capable, available agent with enough budget,
-    and available agents' ``max_tasks`` sum to at least the task count.
+    and available agents' ``capacity`` sum to at least the task count.
     Feasibility under each topology is checked by the evaluation runner, not here.
     """
     factors = factors or ScenarioFactors()
@@ -193,10 +194,10 @@ def generate_scenario(seed: int, factors: ScenarioFactors | None = None) -> Scen
     caps = [str(rng.choice(all_caps)) for _ in range(n_tasks)]
     deps = _dependencies(rng, n_tasks, factors.dependency)
     if factors.task_profile == "short_balanced":
-        durations = [float(rng.integers(10, 26)) for _ in range(n_tasks)]
+        durations = [float(rng.integers(10, 26)) * MINUTE_MS for _ in range(n_tasks)]
         priorities = [1.0] * n_tasks
     else:
-        durations = [float(rng.integers(25, 61)) for _ in range(n_tasks)]
+        durations = [float(rng.integers(25, 61)) * MINUTE_MS for _ in range(n_tasks)]
         priorities = [float(rng.choice([1.0, 1.0, 2.0, 3.0])) for _ in range(n_tasks)]
     demands = [float(rng.integers(1, 7)) for _ in range(n_tasks)]
 
@@ -223,9 +224,9 @@ def generate_scenario(seed: int, factors: ScenarioFactors | None = None) -> Scen
     if factors.availability == "one_unavailable":
         available[int(rng.integers(0, n_workers))] = False
     if factors.availability == "uneven":
-        max_tasks = [int(rng.integers(1, 5)) for _ in range(n_workers)]
+        capacity = [int(rng.integers(1, 5)) for _ in range(n_workers)]
     else:
-        max_tasks = [ceil(n_tasks / n_workers) + 2] * n_workers
+        capacity = [ceil(n_tasks / n_workers) + 2] * n_workers
 
     # coverage repair: each required capability is held by an available worker (same family preferred)
     live = [i for i in range(n_workers) if available[i]]
@@ -234,9 +235,9 @@ def generate_scenario(seed: int, factors: ScenarioFactors | None = None) -> Scen
             same_family = [i for i in live if roles[i] == _FAMILY_OF[cap]]
             agent_caps[(same_family or live)[0]].add(cap)
     # task-count repair
-    while sum(max_tasks[i] for i in live) < n_tasks:
-        smallest = min(live, key=lambda i: (max_tasks[i], i))
-        max_tasks[smallest] += 1
+    while sum(capacity[i] for i in live) < n_tasks:
+        smallest = min(live, key=lambda i: (capacity[i], i))
+        capacity[smallest] += 1
 
     # budgets: total = demand * pressure, split by seeded weights, then per-task repair
     total = sum(demands) * _PRESSURE[factors.resources]
@@ -249,13 +250,13 @@ def generate_scenario(seed: int, factors: ScenarioFactors | None = None) -> Scen
 
     agents = [_lead()]
     for i in range(n_workers):
-        agents.append(_agent(f"A{i + 1}", roles[i], sorted(agent_caps[i]), max_tasks[i], budgets[i],
+        agents.append(_agent(f"A{i + 1}", roles[i], sorted(agent_caps[i]), capacity[i], budgets[i],
                              coord=coordinate[i], available=available[i]))
 
     tid = [f"T{i + 1:02d}" for i in range(n_tasks)]
     tasks = tuple(
         TaskSpec(task_id=tid[i], name=f"{caps[i]} task", required_capabilities=[caps[i]],
-                 duration=durations[i], resource_demand=demands[i], priority=priorities[i],
+                 duration_ms=durations[i], resource_demand=demands[i], priority_weight=priorities[i],
                  dependencies=[tid[j] for j in deps[i]])
         for i in range(n_tasks)
     )
@@ -264,7 +265,7 @@ def generate_scenario(seed: int, factors: ScenarioFactors | None = None) -> Scen
         mission_id=f"M-{seed}-{factors.key()}",
         scenario_id=scenario_id,
         tasks=tasks,
-        deadline=round(_critical_path(durations, deps) * 1.6, 1),
+        deadline_ms=round(_critical_path(durations, deps) * 1.6, 1),
         generator_version=GENERATOR_VERSION,
         generator_params={"seed": seed, **factors.model_dump(), "n_tasks": n_tasks, "n_workers": n_workers},
         family=factors.family(),

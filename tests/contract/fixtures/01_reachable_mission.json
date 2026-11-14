@@ -1,0 +1,83 @@
+{
+  "agents": [
+    {
+      "agent_id": "A0",
+      "available": true,
+      "can_coordinate": true,
+      "capabilities": [
+        "sense"
+      ],
+      "capacity": 2,
+      "public_key_id": "A0#46651bd16db7",
+      "resource_budget": 5.0,
+      "role": "sensing"
+    },
+    {
+      "agent_id": "A1",
+      "available": true,
+      "can_coordinate": false,
+      "capabilities": [
+        "act"
+      ],
+      "capacity": 2,
+      "public_key_id": "A1#a69eb99b0d04",
+      "resource_budget": 5.0,
+      "role": "action"
+    }
+  ],
+  "expected": {
+    "cross_agent_dependency": [
+      "T1",
+      "T2"
+    ],
+    "eligible_topologies": [
+      "DISTRIBUTED",
+      "FUNCTIONAL_CELL",
+      "HIERARCHICAL"
+    ]
+  },
+  "mission": {
+    "deadline_ms": 10000,
+    "epoch": 1,
+    "family": "fixture",
+    "generator_params": {},
+    "generator_version": "fixture-v1",
+    "mission_id": "fx-mission-1",
+    "tasks": [
+      {
+        "dependencies": [],
+        "duration_ms": 1000,
+        "priority_weight": 1.0,
+        "required_capabilities": [
+          "sense"
+        ],
+        "resource_demand": 1.0,
+        "reward_critical": true,
+        "task_id": "T1"
+      },
+      {
+        "dependencies": [
+          "T1"
+        ],
+        "duration_ms": 1500,
+        "priority_weight": 1.0,
+        "required_capabilities": [
+          "act"
+        ],
+        "resource_demand": 1.0,
+        "reward_critical": true,
+        "task_id": "T2"
+      }
+    ]
+  },
+  "permitted_links": [
+    [
+      "A0",
+      "A1"
+    ],
+    [
+      "A1",
+      "A0"
+    ]
+  ]
+}

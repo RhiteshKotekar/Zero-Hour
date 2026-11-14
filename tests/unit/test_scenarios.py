@@ -39,7 +39,7 @@ def test_generated_scenarios_respect_guarantees(seed: int, factors: ScenarioFact
     for task in mission.tasks:
         assert eligible_agents(scenario, task), f"{task.task_id} has no capable agent"
     live = scenario.available_agents()
-    assert sum(a.max_tasks for a in live) >= len(mission.tasks)
+    assert sum(a.capacity for a in live) >= len(mission.tasks)
     if factors.availability == "one_unavailable":
         assert len(live) == len(scenario.agents) - 1
     if factors.dependency == "deep_chain":

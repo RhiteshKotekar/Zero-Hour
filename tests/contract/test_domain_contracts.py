@@ -28,30 +28,30 @@ from samg.simulation.scenarios import judge_scenario
 
 
 def _task(tid: str, deps: list[str] | None = None) -> TaskSpec:
-    return TaskSpec(task_id=tid, required_capabilities=["x"], duration=1, resource_demand=0, dependencies=deps or [])
+    return TaskSpec(task_id=tid, required_capabilities=["x"], duration_ms=1, resource_demand=0, dependencies=deps or [])
 
 
 def _mission(tasks: list[TaskSpec]) -> MissionSpec:
-    return MissionSpec(mission_id="m", scenario_id="s", tasks=tasks, deadline=10)
+    return MissionSpec(mission_id="m", scenario_id="s", tasks=tasks, deadline_ms=10)
 
 
 def test_enum_values_are_stable() -> None:
-    assert [t.value for t in TopologyName] == ["distributed", "functional_cell", "hierarchical"]
+    assert [t.value for t in TopologyName] == ["HIERARCHICAL", "FUNCTIONAL_CELL", "DISTRIBUTED"]
 
 
 def test_models_forbid_extra_fields() -> None:
     with pytest.raises(ValidationError):
-        TaskSpec(task_id="t", required_capabilities=["x"], duration=1, resource_demand=0, colour="red")
+        TaskSpec(task_id="t", required_capabilities=["x"], duration_ms=1, resource_demand=0, colour="red")
 
 
 def test_models_are_immutable() -> None:
     task = _task("t")
     with pytest.raises(ValidationError):
-        task.duration = 5  # type: ignore[misc]
+        task.duration_ms = 5  # type: ignore[misc]
 
 
 def test_capabilities_are_sorted_and_deduplicated() -> None:
-    task = TaskSpec(task_id="t", required_capabilities=["b", "a", "b"], duration=1, resource_demand=0)
+    task = TaskSpec(task_id="t", required_capabilities=["b", "a", "b"], duration_ms=1, resource_demand=0)
     assert task.required_capabilities == ("a", "b")
 
 
@@ -83,10 +83,10 @@ def test_topological_order_and_depth_are_deterministic() -> None:
 
 
 def test_capability_matching_any_and_all() -> None:
-    agent = AgentProfile(agent_id="x", role="r", capabilities=["a"], max_tasks=1, resource_budget=1, public_key_id="k")
+    agent = AgentProfile(agent_id="x", role="r", capabilities=["a"], capacity=1, resource_budget=1, public_key_id="k")
     any_task = TaskSpec(task_id="t", required_capabilities=["a", "b"], capability_match=CapabilityMatch.ANY,
-                        duration=1, resource_demand=0)
-    all_task = TaskSpec(task_id="u", required_capabilities=["a", "b"], duration=1, resource_demand=0)
+                        duration_ms=1, resource_demand=0)
+    all_task = TaskSpec(task_id="u", required_capabilities=["a", "b"], duration_ms=1, resource_demand=0)
     assert any_task.is_capable(agent)
     assert not all_task.is_capable(agent)
 
@@ -147,3 +147,25 @@ def test_reward_weights_must_sum_to_one() -> None:
 def test_config_hash_is_stable_and_sensitive() -> None:
     assert config_hash(RewardConfig()) == config_hash(RewardConfig())
     assert config_hash(TopologyCostConfig()) != config_hash(TopologyCostConfig(h1=0.6))
+
+
+@pytest.mark.parametrize("name", ["01_reachable_mission.json", "02_unreachable_mission.json"])
+def test_topology_eligibility_matches_shared_fixture(name: str) -> None:
+    """Dev B's fixtures encode the expected eligibility; Dev A's templates must reproduce it."""
+    import json
+    from pathlib import Path
+
+    from samg.domain import AgentProfile, Scenario
+    from samg.topology import eligible_topologies
+
+    fixture = json.loads((Path(__file__).parent / "fixtures" / name).read_text(encoding="utf-8"))
+    mission = MissionSpec.model_validate(fixture["mission"])
+    scenario = Scenario(
+        scenario_id=mission.mission_id,
+        seed=0,
+        mission=mission,
+        agents=tuple(AgentProfile.model_validate(a) for a in fixture["agents"]),
+        permitted_links=tuple(tuple(link) for link in fixture["permitted_links"]),
+    )
+    eligible, _ = eligible_topologies(scenario)
+    assert sorted(t.value for t in eligible) == fixture["expected"]["eligible_topologies"]

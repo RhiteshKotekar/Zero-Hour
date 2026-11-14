@@ -37,7 +37,7 @@ class TopologyCostConfig(SamgModel):
         description="Per undirected coordination link maintained by the topology (proposed D019).",
     )
     max_path_hops: int = Field(default=4, ge=1, description="Longer paths are treated as no permitted path.")
-    handoff_delay_per_hop: float = Field(default=2.0, ge=0, description="Simulated minutes per hop.")
+    handoff_delay_ms_per_hop: float = Field(default=120_000.0, ge=0, description="Simulated ms added per hop.")
     hop_failure_probability: float = Field(default=0.02, ge=0, lt=1, description="Per-hop message loss in the simulator.")
     distributed_max_degree: int = Field(default=3, ge=1)
     sensitivity: dict[str, CostSetting] = Field(
@@ -61,7 +61,7 @@ class CpSatSettings(SamgModel):
     time_limit_s: float = Field(default=5.0, gt=0)
     num_workers: int = Field(default=1, ge=1, description="1 keeps CP-SAT deterministic.")
     random_seed: int = 0
-    time_scale: int = Field(default=10, ge=1, description="Float minutes are multiplied by this and rounded.")
+    time_unit_ms: int = Field(default=1000, ge=1, description="Solver time unit; ms values are divided by this and rounded.")
 
 
 class AllocationConfig(SamgModel):

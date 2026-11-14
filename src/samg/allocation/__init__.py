@@ -35,4 +35,6 @@ def allocate(
     return allocate_greedy(problem, fallback_used=True)
 
 
-__all__ = ["AllocationProblem", "allocate", "allocate_cpsat", "allocate_greedy", "evaluate"]
+from samg.allocation.feasibility import feasible_topologies  # noqa: E402  (needs allocate defined)
+
+__all__ = ["AllocationProblem", "allocate", "allocate_cpsat", "allocate_greedy", "evaluate", "feasible_topologies"]

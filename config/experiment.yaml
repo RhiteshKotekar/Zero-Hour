@@ -1,0 +1,14 @@
+# Experiments A/B protocol (brief §12.2). Tune on dev only; set frozen: true and
+# record the config hash before the held-out test run. Never retune after it.
+version: exp-v1
+master_seed: 2026
+n_dev: 10
+n_train: 60
+n_test: 20
+holdout_fraction: 0.2
+alpha: 0.5          # LinUCB exploration
+lam: 1.0            # LinUCB ridge
+warmup_per_arm: 2   # seeded balanced warm-up
+ucb_c: 1.0          # UCB1 exploration
+bootstrap_seed: 7
+frozen: false

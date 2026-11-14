@@ -17,8 +17,12 @@ This is a simulation assurance mechanism, not a production PKI or safety certifi
 | Signed false claim | Compromised simulated agent signs an inflated reward | Independent evidence contradicts it; reject with `EVIDENCE_MISMATCH`. |
 | Missing/weak evidence | Report is authentic but cannot be corroborated | Return `INDETERMINATE`; do not learn. |
 | Evidence supplied by reporter | Same agent signs both claim and supposed proof | Not independent; insufficient for a learning-grade decision. |
+| *(neural baseline only)* Poisoned allocator training data | Agent claims or episodes are fed into neural allocator training, so a signed false report shapes future allocations | Training accepts only generator instances and `allocation.common.evaluate` rewards (INV-10). There is no code path from persistence to `nco/train.py`. |
+| *(neural baseline only)* Checkpoint substitution or tampering | A different or modified `.pt` file is placed where the frozen checkpoint should be, or a pickled payload executes code on load | SHA-256 must match the `FROZEN` registry row and the manifest. Loading uses `weights_only=True` (INV-11). |
+| *(neural baseline only)* Mask bug or reward hacking | The policy finds a plan that scores well under the training reward but violates a hard constraint | `allocation.validate_plan` re-checks every plan before simulation. A failure falls back to CP-SAT or greedy with a reason code (INV-12). |
+| *(neural baseline only)* Train/test leakage | Allocator trained on instances later used for evaluation | Disjoint `nco-train` / `nco-dev` / `nco-test` seed ranges, also disjoint from the Experiment 1/2 splits (INV-13). |
 
-Out of scope: theft of a registered private key, physical-world sensor integrity, network confidentiality, side channels, a Byzantine majority of evidence sources, and denial of service. These limits must be displayed with Experiment 2 results so the demo does not overclaim security.
+Out of scope: theft of a registered private key, physical-world sensor integrity, network confidentiality, side channels, a Byzantine majority of evidence sources, denial of service, and, for the deferred neural baseline, adversarial perturbation of allocator inputs and compromise of the training machine or the PyTorch/XPU toolchain. These limits must be displayed with Experiment 2 results so the demo does not overclaim security.
 
 ## Identity and signatures
 
@@ -83,6 +87,18 @@ vulnerable comparison path:
 
 The comparison path is intentionally unsafe and exists only in experiment code. Its class/module name must include `Vulnerable` and it must never be selected by default application wiring. The protected policy independently checks `validation_status == VALID` before changing `A` or `b`, logs rejected attempts, and raises a domain error if invoked with an ineligible event.
 
+## Offline training plane and model artefacts (deferred neural baseline)
+
+**Not part of the MVP.** The hackathon build has no neural component, and INV-05 applies to it exactly as written. This section applies only if the optional, local-only neural allocator baseline is built later (D022, following [Luttmann & Xie, ICAPS 2024](PAPER_ALIGNMENT.md)). That baseline is trained with RL, and RL training creates a second route by which data can shape future decisions. The rule "only validated rewards may update the learner" is therefore **restated rather than dropped** (D026). INV-10 to INV-13 apply only while the baseline is enabled.
+
+- **INV-05 (restated).** Only `ADMITTED` episodes may update persistent **online** policy state (LinUCB, UCB1). The neural baseline has no online update; it is frozen before any run that uses it.
+- **INV-10: training provenance.** Training rewards are a *planning objective*, `−allocation.common.evaluate(...).weighted_total`, computed by trusted code on instances drawn from the seeded generator's `nco-train` range. The paper uses the same pattern: its reward is computed by the deterministic environment, never reported by an agent. Agent claims, witness events and episodes (admitted, provisional or rejected) are never training inputs. `NcoTrainingRun` has no field that could reference them.
+- **INV-11: checkpoint integrity.** Weights live at `artifacts/checkpoints/<sha256>.pt`. A load recomputes the SHA-256, requires a matching `FROZEN` row in `model_checkpoints` and a matching manifest entry, and uses `torch.load(path, weights_only=True)`. Checkpoints from outside the repo, the authors' published checkpoints included, are not loaded into recorded runs.
+- **INV-12: decode is not trusted.** Feasibility masks make valid plans likely, but they are not a proof. `allocation.validate_plan` (the CP-SAT constraint set plus graph reachability) runs on every neural plan before simulation; CP-SAT and greedy plans may be checked too. A rejected neural plan is replaced by CP-SAT, or by greedy if CP-SAT is unavailable. The record keeps `fallback_used = true` and a `fallback_reason`.
+- **INV-13: split disjointness.** The `nco-train`, `nco-dev` and `nco-test` seed ranges are disjoint from each other and from the Experiment 1/2 splits.
+
+The false-report attack (Experiment C) does not target the allocator. With CP-SAT there is nothing to poison, and the neural baseline, if built, is frozen and never reads reports. If online fine-tuning from executed missions is proposed later, it would need its own decision. The proposed rule is "`ADMITTED` episodes and canonical reward only, routed through the same guarded admission API". It would also need its own vulnerable/protected comparison.
+
 ## Security tests required before Experiment 2
 
 - valid registered signature + matching independent evidence → `VALID` and exactly one protected update;
@@ -91,3 +107,11 @@ The comparison path is intentionally unsafe and exists only in experiment code. 
 - insufficient or reporter-owned-only evidence → `INDETERMINATE` and zero updates;
 - vulnerable learner demonstrably updates on a validly signed false claim;
 - persistence restart retains nonce replay protection and preserves decisions/events.
+
+Additional tests, only if the deferred neural baseline is built (before Experiment E):
+
+- `samg.nco` imports nothing from `samg.persistence`, `samg.assurance` or the report/witness generators. The test is a static import check (INV-10).
+- A checkpoint with one flipped byte, or with no `FROZEN` row, is refused before deserialisation (INV-11).
+- A hand-built neural plan that violates capability, capacity, precedence or reachability is rejected by `validate_plan` and replaced by the fallback, with the reason code recorded (INV-12).
+- The seed-range disjointness check passes for the manifest (INV-13).
+- A protected LinUCB update count is unchanged whether CP-SAT or the neural allocator produced the plan. The allocator choice must not bypass the admission gate.

@@ -243,3 +243,27 @@ Extends D004. Details are in [SECURITY_MODEL.md](SECURITY_MODEL.md#offline-train
 **Decision:** A topology is offered to a policy only if it can be built (`eligible_topologies`, unchanged) **and** the allocator finds a feasible plan for it. `samg.allocation.feasible_topologies(scenario, costs, config)` returns the eligible arms, a verdict per arm (new reason `IneligibilityReason.ALLOCATION_INFEASIBLE`, with the allocator's reason codes in `detail`) and the `(graph, plan)` per eligible arm, so orchestration can reuse the plan instead of solving twice. `eligible_topologies` keeps its signature for callers that only need the structural check.
 
 **Why:** After the generator fix (R5 in `WORK_QUEUE.md`), 10/643 scenario×topology pairs passed structural eligibility but had no feasible plan (all DISTRIBUTED, where the degree cap removes a needed path). Offering such an arm makes a policy pay an infeasible outcome it could have avoided. Feasibility is known before execution, so it does not leak outcome information. Brief §12.8 still requires reporting the infeasibility rate: it is now reported per topology as ineligibility, not as a selected-arm failure.
+
+## D032 — Phase 2 evidence-path conventions (2026-11-14, proposed by the integrator)
+
+**Decision:** (No change to signed fields, enum values or fixtures.)
+- The simulator records a finished task as `EXECUTING -> REPORTED_COMPLETE`. The witness signs that observation as `EXECUTING -> VERIFIED_COMPLETE`, since only the witness may verify (§8.8). Every other transition is signed unchanged.
+- Simulated clock: `issued_at = SIM_BASE_TIME + mission_index days + sim_time_ms`. The ACP's receipt time (`now` for freshness) is the event's simulated issue time. Event ids are `{mission_id}/e{epoch}/{signer_id}/{seq}`, with per-signer `seq` starting at 0 for each mission.
+- `validate_event` checks, in order: signature → role allows the event type → freshness → payload schema (a `REWARD_CLAIM` needs a numeric `claimed_reward`) → task-state machine. Only events that pass every check are recorded in the seen-store.
+- Corroboration: a task claim is CORROBORATED by the matching witness transition within `evidence_tolerance_seconds`. It is DISPUTED if the witness contradicts it (wrong time, or a FAILED/BLOCKED task), and PROVISIONAL with no witness evidence. A `REWARD_CLAIM` is compared with the ACP-recomputed reward (`metric_relative_tolerance`). If coverage is incomplete, it is DISPUTED when it exceeds the highest reward the witness evidence still permits (tasks witnessed FAILED/BLOCKED are lost; everything else is assumed perfect), and PROVISIONAL otherwise. Even a corroborated reward claim is never used as the reward.
+- After-action reporting: one agent files the honest `REWARD_CLAIM`, the one with the most assigned tasks (ties go to the lower agent id). `VulnerableLinUCB` learns from the last *authenticated* `REWARD_CLAIM` in receipt order.
+- Protected and vulnerable learners in the attack comparison run in separate SQLite worlds, so their identical event ids never collide in the dedupe barrier.
+
+**Why:** These details sit between Dev A's trace and Dev B's ACP primitives. They had to be fixed for the vertical slice, and fixtures 03–05 pass under them. Dev B may revise them; each one is isolated in `witness/`, `assurance/admission.py` or `orchestration.py`.
+
+## D033 — Reward normalisation used by the integration reward module (2026-11-14, proposed; Dev A to confirm)
+
+**Decision:** `samg.simulation.reward.compute_metrics` serves both the simulator (ground truth) and the ACP (witness-verified outcomes):
+- `C` = completed priority weight / total priority weight.
+- `T` = makespan / deadline, clipped. Makespan is the latest end of a completed task; with nothing completed, `T = 1`.
+- `R` = resource demand of every task that started executing / total budget of the agents the plan assigned, clipped.
+- `H` = (handoff cost of planned handoffs whose prerequisite completed + `link_cost` × coordination links) / `max_coordination_cost`, clipped (D012, D021).
+- An infeasible plan gets `compute_reward(None)`: the predefined failure outcome (`failure_reward`, `failure_label`). The episode is REJECTED with `INFEASIBLE_PLAN` and never learned from.
+- The simulator uses integer milliseconds, so the ACP's reward from witness `sim_time_ms` equals the ground-truth reward exactly when the witness is faithful.
+
+**Why:** `config/reward.yaml` names the ranges but not the edge cases (incomplete missions, which handoffs count, which budget is the denominator). Fixing them once keeps the protected reward and the evaluation oracle on identical arithmetic.

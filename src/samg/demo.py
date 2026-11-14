@@ -143,7 +143,8 @@ def render_mission(record: MissionRunRecord, scenario: Scenario, settings: RunSe
     if not plan.feasible:
         out("    infeasible: " + ",".join(r.value for r in plan.reason_codes) + f" ({plan.detail})")
     outcomes = {o.task_id: o for o in record.trace.outcomes} if record.trace else {}
-    out("    task  agent   planned start-end (min)   actual start-end (min)   outcome")
+    if plan.assignments:
+        out("    task  agent   planned start-end (min)   actual start-end (min)   outcome")
     for a in plan.assignments:
         o = outcomes.get(a.task_id)
         status = "-" if o is None else ("completed" if o.completed else f"NOT DONE ({o.failure_reason})")

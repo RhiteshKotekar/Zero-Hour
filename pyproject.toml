@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "samg"
+version = "0.1.0"
+description = "Secure Adaptive Mission Graphs — controlled coordination simulation"
+readme = "Readme.md"
+requires-python = ">=3.11"
+dependencies = [
+    "cryptography>=42.0",
+    "matplotlib>=3.8",
+    "networkx>=3.2",
+    "numpy>=1.26",
+    "ortools>=9.10",
+    "plotly>=5.22",
+    "pydantic>=2.6",
+    "SQLAlchemy>=2.0",
+    "streamlit>=1.33",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+markers = [
+    "integration: exercises multiple SAMG components together",
+    "slow: scenario or optimisation test that is not part of the fast suite",
+]

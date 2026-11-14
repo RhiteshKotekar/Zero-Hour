@@ -1,0 +1,21 @@
+# Python bytecode and virtual environments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Test and tool output
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Application-local state and generated artefacts
+*.sqlite3
+*.db
+artifacts/
+reports/
+
+# Streamlit and editor state
+.streamlit/secrets.toml
+.idea/
+.vscode/

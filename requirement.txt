@@ -1,10 +1,1 @@
-networkx
-numpy
-ortools
-cryptography
-pydantic
-sqlalchemy
-streamlit
-plotly
-matplotlib
-pytest
+-r requirements.txt

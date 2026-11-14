@@ -1,27 +1,48 @@
-# Python bytecode and virtual environments
+# Python bytecode, virtual environments, packaging
 __pycache__/
 *.py[cod]
 .venv/
+.venv-*/
 venv/
-*.egg-info/
-
-# Test and tool output
-.pytest_cache/
-.coverage
-htmlcov/
-
-# Application-local state and generated artefacts
-*.sqlite3
-*.db
-artifacts/
-reports/
-
-# Streamlit and editor state
-.streamlit/secrets.toml
-.idea/
-.vscode/
-
-# Packaging metadata
 *.egg-info/
 build/
 dist/
+
+# Test and tool output
+.pytest_cache/
+.hypothesis/
+.coverage
+.coverage.*
+htmlcov/
+.ruff_cache/
+.mypy_cache/
+
+# Application-local state and generated artefacts (runs, demo bundles, results)
+*.sqlite3
+*.sqlite3-journal
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+artifacts/
+reports/
+*.log
+
+# Neural baseline (local only): checkpoints and exported models live under artifacts/
+*.pt
+*.pth
+*.ckpt
+*.onnx
+
+# Secrets and local environment
+.env
+.env.*
+.streamlit/secrets.toml
+.claude/settings.local.json
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini

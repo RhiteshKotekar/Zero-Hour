@@ -1,0 +1,111 @@
+{
+  "active_epoch": 1,
+  "agent_events": [
+    {
+      "agent_id": "A1",
+      "epoch": 1,
+      "event_id": "a1-claim-0",
+      "event_type": "TASK_COMPLETE_CLAIM",
+      "issued_at": "2026-01-01T00:00:02.600000Z",
+      "key_id": "A1#a69eb99b0d04",
+      "kind": "AGENT_EVENT",
+      "mission_id": "fx-mission-1",
+      "payload": {},
+      "schema_version": "evt-v1",
+      "seq": 0,
+      "signature": "MoSLpA-JybvtnX5Q-XpovqGCtOWHdy3L_mj-SJ5f0pqGGTBn_RXD-AmnIpDp6vvlrjaehnLkEiGwD9l_VDacDg==",
+      "task_id": "T2"
+    },
+    {
+      "agent_id": "A1",
+      "epoch": 1,
+      "event_id": "a1-reward-1",
+      "event_type": "REWARD_CLAIM",
+      "issued_at": "2026-01-01T00:00:02.600000Z",
+      "key_id": "A1#a69eb99b0d04",
+      "kind": "AGENT_EVENT",
+      "mission_id": "fx-mission-1",
+      "payload": {
+        "attacker_preferred_topology": "DISTRIBUTED",
+        "claimed_reward": 0.98
+      },
+      "schema_version": "evt-v1",
+      "seq": 1,
+      "signature": "-9AX7NvDSfW4AEWXdiWoaxR8QKATK4PN_btK0Z8nH1CiVKuyW_VgoLJGYBxY3mjqu8w6rpPNQizXX-63whkoBQ==",
+      "task_id": null
+    }
+  ],
+  "description": "A1 is authorised and signs correctly, but claims T2 complete and an inflated reward while the witness observed T2 FAILED.",
+  "expected": {
+    "a1-claim-0": {
+      "auth": "AUTHENTICATED",
+      "corroboration": "DISPUTED"
+    },
+    "a1-reward-1": {
+      "auth": "AUTHENTICATED",
+      "corroboration": "DISPUTED"
+    }
+  },
+  "identities": [
+    {
+      "active": true,
+      "identity_id": "A0",
+      "key_id": "A0#46651bd16db7",
+      "public_key_b64": "zUoafwH261X-PzaO2YqpUNysm-kkYNokvv0dVI50AHU=",
+      "role": "COORDINATOR"
+    },
+    {
+      "active": true,
+      "identity_id": "A1",
+      "key_id": "A1#a69eb99b0d04",
+      "public_key_b64": "ylaJBpbA7Pe1Fv0hQxr_l5mz6UV0oc7TPHdwp7cEjXA=",
+      "role": "AGENT"
+    },
+    {
+      "active": true,
+      "identity_id": "WITNESS-0",
+      "key_id": "WITNESS-0#a62c2eb4c037",
+      "public_key_b64": "ngvoBEwmsyXkyP5aDDG32YJxK1BsXPZ5DDoEDdj9mT0=",
+      "role": "WITNESS"
+    }
+  ],
+  "seed": 7,
+  "witness_events": [
+    {
+      "epoch": 1,
+      "event_id": "w-0",
+      "event_type": "WITNESS_TRANSITION",
+      "from_state": "ASSIGNED",
+      "issued_at": "2026-01-01T00:00:01Z",
+      "key_id": "WITNESS-0#a62c2eb4c037",
+      "kind": "WITNESS_EVENT",
+      "mission_id": "fx-mission-1",
+      "payload": {},
+      "schema_version": "evt-v1",
+      "seq": 0,
+      "signature": "pY4h-OPMtQs_bTkYA_uGajWd6fwaQi3bax4aPSmDM4i9SOdOOMiRFahg-YxN-zoAU6YCs-wfRe2Uekr5Zx2mCA==",
+      "sim_time_ms": 1000,
+      "task_id": "T2",
+      "to_state": "EXECUTING",
+      "witness_id": "WITNESS-0"
+    },
+    {
+      "epoch": 1,
+      "event_id": "w-1",
+      "event_type": "WITNESS_TRANSITION",
+      "from_state": "EXECUTING",
+      "issued_at": "2026-01-01T00:00:02Z",
+      "key_id": "WITNESS-0#a62c2eb4c037",
+      "kind": "WITNESS_EVENT",
+      "mission_id": "fx-mission-1",
+      "payload": {},
+      "schema_version": "evt-v1",
+      "seq": 1,
+      "signature": "4v7OElnfysbk4zjWizxK65sxsaHxxRsjGGZdySPEwGwhKltxIFrsRfPthFru9Z3qI_NhD9amDJufvI2iG_K_Cg==",
+      "sim_time_ms": 2000,
+      "task_id": "T2",
+      "to_state": "FAILED",
+      "witness_id": "WITNESS-0"
+    }
+  ]
+}

@@ -297,3 +297,9 @@ Extends D004. Details are in [SECURITY_MODEL.md](SECURITY_MODEL.md#offline-train
 **Decision:** The §12.9 ablations rerun the full protocol on design seeds ≥ 60 000 with `alpha` kept frozen and P1 re-selected on each setting's own training data. The held-out test split is never used for ablations.
 
 **Why:** Keeps sensitivity analysis from leaking into, or being tuned on, the reported test set.
+
+## D038 — Warehouse digital twin and two optional simulator inputs (2026-11-15)
+
+**Decision:** Add `samg.warehouse` (layout, A* routing, inventory, orders, task generation, aisle locks, physical replay, adapter) and a "Warehouse Digital Twin" dashboard tab. Orders become SAMG missions; topology selection, CP-SAT allocation, execution, witness, ACP and guarded learning are SAMG's unchanged public functions. `simulation.engine.run` gains two optional, default-empty inputs passed through `orchestration.execute_mission` / `run_single_mission`: `task_delays_ms` (physical travel overruns and aisle-congestion waits measured by the warehouse replay, fed back as task delays) and `agent_breakdowns` (a robot breaks down halfway through a task; its later tasks are `BLOCKED: AGENT_DOWN`). `run_single_mission` also accepts a precomputed `feasible` result to avoid solving twice. Replanning after failures runs the not-witness-verified tasks as a new SAMG mission with failed robots unavailable.
+
+**Why:** The demo needs congestion and robot failures to affect SAMG's timing, reward and witness evidence rather than being drawn on top of it. Defaults keep every existing run byte-identical (tested). Config lives in `config/warehouse.yaml` (`wh-v1`).

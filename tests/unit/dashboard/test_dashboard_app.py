@@ -21,9 +21,10 @@ def _app() -> AppTest:
     return at
 
 
-def test_app_renders_three_tabs() -> None:
+def test_app_renders_four_tabs() -> None:
     at = _app()
-    assert len(at.tabs) == 3
+    assert [t.label for t in at.tabs] == ["Warehouse Digital Twin", "Mission Control", "Adaptive Evaluation Lab",
+                                          "Security & Attack Lab"]
     assert any("Mission Control" in h.value for h in at.header)
 
 

@@ -1,0 +1,8 @@
+# Dashboard theme: light, industrial control-room palette (matches the warehouse digital twin).
+[theme]
+base = "light"
+primaryColor = "#2563eb"
+backgroundColor = "#eef1f5"
+secondaryBackgroundColor = "#ffffff"
+textColor = "#0b1220"
+font = "sans serif"

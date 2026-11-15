@@ -21,7 +21,7 @@ comparison run in separate worlds so their events never collide.
 
 from __future__ import annotations
 
-from collections.abc import Collection, Iterator, Sequence
+from collections.abc import Collection, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -257,6 +257,8 @@ def execute_mission(
     mission_index: int = 0,
     attack: AttackConfig | None = None,
     forced_failures: Collection[str] = (),
+    task_delays_ms: Mapping[str, float] | None = None,
+    agent_breakdowns: Mapping[str, str] | None = None,
 ) -> MissionExecution:
     """Graph -> allocate -> simulate -> witness + reports (+ attack) -> ACP validate/corroborate/admit.
 
@@ -298,7 +300,8 @@ def execute_mission(
         sabotaged = attack.sabotaged_task(mission_index, plan) if attack is not None else None
         if sabotaged is not None:
             forced.add(sabotaged)
-        trace = simulate(scenario, graph, plan, seed, settings.costs, forced_failures=forced)
+        trace = simulate(scenario, graph, plan, seed, settings.costs, forced_failures=forced,
+                         task_delays_ms=task_delays_ms, agent_breakdowns=agent_breakdowns)
         gt_reward = compute_reward(trace.metrics, settings.reward)
         witness_events = WitnessService(settings.security.witness.identity_id, registry, ring).observe(trace, base_time)
         drafts = draft_reports(trace, plan, gt_reward)
@@ -343,6 +346,9 @@ def run_single_mission(
     mission_index: int = 0,
     attack: AttackConfig | None = None,
     forced_failures: Collection[str] = (),
+    task_delays_ms: Mapping[str, float] | None = None,
+    agent_breakdowns: Mapping[str, str] | None = None,
+    feasible: tuple[Any, Any, Any] | None = None,
 ) -> MissionRunRecord:
     """Run one mission end to end and apply (or refuse) the policy update. See module docstring.
 
@@ -354,7 +360,9 @@ def run_single_mission(
     prefix = f"{mission.mission_id}/e{mission.epoch}"
 
     context = extract_features(scenario)
-    eligible, verdicts, plans = feasible_topologies(scenario, settings.costs, settings.allocation)
+    # ``feasible`` lets a caller that already solved feasible_topologies for this exact
+    # scenario and settings (e.g. samg.warehouse's physical dry run) avoid solving twice.
+    eligible, verdicts, plans = feasible or feasible_topologies(scenario, settings.costs, settings.allocation)
     decision = policy.select(context.features, eligible, context.feature_schema_version)
     decision_id = f"{prefix}/{instance}"
 
@@ -375,7 +383,8 @@ def run_single_mission(
     graph, plan = plans[decision.topology]
     ex = execute_mission(scenario, decision.topology, settings, seed=seed, decision_id=decision_id, graph=graph,
                          plan=plan, repo=repo, mission_index=mission_index, attack=attack,
-                         forced_failures=forced_failures)
+                         forced_failures=forced_failures, task_delays_ms=task_delays_ms,
+                         agent_breakdowns=agent_breakdowns)
     learning_event, applied, rejection = _learn(world, ex.episode, decision_id, context, ex.claimed_reward)
     repo.add_policy_snapshot(snapshot_id=f"policy:{decision_id}", policy_instance=instance, state=policy.snapshot())
     return MissionRunRecord(

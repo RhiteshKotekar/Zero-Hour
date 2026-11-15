@@ -1,0 +1,127 @@
+# Warehouse digital twin (samg.warehouse). The physical scenario in which SAMG is demonstrated.
+# Grid cells are 1 m x 1 m; x grows east (0..width-1), y grows south (0..height-1).
+# Rectangles are [x0, y0, x1, y1], inclusive.
+version: wh-v1
+start_clock: "09:40:00"          # wall-clock label for simulated t = 0 (display only)
+
+warehouse:
+  width: 30
+  height: 20
+  walls:                         # structural, never walkable
+    - [0, 5, 0, 14]
+    - [17, 5, 17, 14]
+  zones:                         # label areas (walkable floor unless covered by racks/stations/walls)
+    - {id: RECEIVING,     label: "Receiving",           rect: [0, 0, 6, 2]}
+    - {id: PARK,          label: "Robot park", rect: [8, 0, 15, 2]}
+    - {id: CONTROL,       label: "Control room · WMS",  rect: [23, 0, 29, 2]}
+    - {id: NORTH_AISLE,   label: "Main aisle N",        rect: [0, 3, 29, 4]}
+    - {id: STORAGE,       label: "Storage",             rect: [0, 5, 17, 14]}
+    - {id: CONSOLIDATION, label: "Consolidation",       rect: [18, 5, 20, 14]}
+    - {id: PACKING,       label: "Packing",             rect: [21, 5, 25, 14]}
+    - {id: STAGING,       label: "Outbound staging",    rect: [26, 5, 29, 14]}
+    - {id: SOUTH_AISLE,   label: "Main aisle S",        rect: [0, 15, 29, 16]}
+    - {id: REPLEN,        label: "Replenishment",       rect: [0, 17, 13, 19]}
+    - {id: DISPATCH,      label: "Dispatch",            rect: [14, 17, 29, 19]}
+  racks:                         # storage racks (not walkable); picked from the adjacent aisle cell
+    - {id: A, rect: [2, 5, 3, 14]}
+    - {id: B, rect: [5, 5, 6, 14]}
+    - {id: C, rect: [8, 5, 9, 14]}
+    - {id: D, rect: [11, 5, 12, 14]}
+    - {id: E, rect: [14, 5, 15, 14]}
+  aisles:                        # narrow single-lane pick aisles: one robot at a time (aisle lock)
+    - {id: AI-1, rect: [1, 5, 1, 14]}
+    - {id: AI-2, rect: [4, 5, 4, 14]}
+    - {id: AI-3, rect: [7, 5, 7, 14]}
+    - {id: AI-4, rect: [10, 5, 10, 14]}
+    - {id: AI-5, rect: [13, 5, 13, 14]}
+    - {id: AI-6, rect: [16, 5, 16, 14]}
+  stations:
+    - {id: PK1, kind: pack,  label: "Pack station 1", rect: [22, 6, 24, 8],   access: [21, 7],  outbound: [25, 7]}
+    - {id: PK2, kind: pack,  label: "Pack station 2", rect: [22, 11, 24, 13], access: [21, 12], outbound: [25, 12]}
+    - {id: D1,  kind: dock,  label: "Dock 1", rect: [18, 19, 20, 19], access: [19, 18]}
+    - {id: D2,  kind: dock,  label: "Dock 2", rect: [22, 19, 24, 19], access: [23, 18]}
+    - {id: D3,  kind: dock,  label: "Dock 3", rect: [26, 19, 28, 19], access: [27, 18]}
+    - {id: CH,  kind: charger, label: "Chargers", rect: [14, 0, 15, 1], access: [14, 2]}
+  consolidation_points:          # order tote drop points (walkable)
+    - {id: C1, cell: [19, 6]}
+    - {id: C2, cell: [19, 9]}
+    - {id: C3, cell: [19, 11]}
+    - {id: C4, cell: [19, 13]}
+
+inventory:                       # SKU -> rack cell; the pick face is the adjacent aisle cell
+  - {sku: SKU-101, name: "Bearing kit",      cell: [2, 6],   stock: 40}
+  - {sku: SKU-118, name: "Sensor module",    cell: [3, 12],  stock: 12}
+  - {sku: SKU-205, name: "Drive belt",       cell: [5, 8],   stock: 25}
+  - {sku: SKU-212, name: "Coupler",          cell: [6, 13],  stock: 30}
+  - {sku: SKU-230, name: "Filter cartridge", cell: [6, 6],   stock: 18}
+  - {sku: SKU-305, name: "Servo motor",      cell: [8, 10],  stock: 8}
+  - {sku: SKU-316, name: "Relay board",      cell: [9, 7],   stock: 22}
+  - {sku: SKU-340, name: "Cable harness",    cell: [9, 13],  stock: 35}
+  - {sku: SKU-402, name: "Hydraulic seal",   cell: [11, 9],  stock: 50}
+  - {sku: SKU-417, name: "Gearbox",          cell: [12, 5],  stock: 6}
+  - {sku: SKU-433, name: "Pressure valve",   cell: [12, 12], stock: 14}
+  - {sku: SKU-508, name: "LiDAR unit",       cell: [14, 7],  stock: 5}
+  - {sku: SKU-521, name: "Battery pack",     cell: [15, 10], stock: 9}
+  - {sku: SKU-544, name: "Wheel assembly",   cell: [15, 13], stock: 16}
+
+robots:                          # agent_id, fleet role (= functional cell), capabilities, motion
+  - {id: WMS, role: control,   label: "Warehouse control system", capabilities: [coordination], capacity: 0,
+     lead: true, coordinator: true, physical: false, home: [26, 1]}
+  - {id: R01, role: picking,   capabilities: [picking],            capacity: 4, coordinator: true,  home: [8, 0],   speed: 1.4, battery: 91}
+  - {id: R02, role: picking,   capabilities: [picking],            capacity: 4, coordinator: false, home: [10, 0],   speed: 1.4, battery: 84}
+  - {id: R03, role: picking,   capabilities: [picking],            capacity: 4, coordinator: false, home: [12, 0],  speed: 1.4, battery: 77}
+  - {id: R04, role: picking,   capabilities: [picking, transport], capacity: 4, coordinator: false, home: [9, 2],  speed: 1.4, battery: 68}
+  - {id: R05, role: transport, capabilities: [transport],          capacity: 4, coordinator: true,  home: [11, 2],  speed: 1.6, battery: 88}
+  - {id: R06, role: transport, capabilities: [transport],          capacity: 4, coordinator: false, home: [13, 2],  speed: 1.6, battery: 72}
+  - {id: P01, role: packing,   capabilities: [packing],            capacity: 4, coordinator: true,  station: PK1, speed: 0.0, battery: 100}
+  - {id: P02, role: packing,   capabilities: [packing],            capacity: 4, coordinator: false, station: PK2, speed: 0.0, battery: 100}
+  - {id: L01, role: dispatch,  capabilities: [loading],            capacity: 4, coordinator: true,  home: [16, 18], speed: 1.2, battery: 95}
+  - {id: L02, role: dispatch,  capabilities: [loading],            capacity: 4, coordinator: false, home: [17, 18], speed: 1.2, battery: 81}
+
+timing:                          # simulated seconds
+  pick_s: 16
+  drop_s: 4
+  transport_load_s: 6
+  transport_unload_s: 6
+  pack_base_s: 30
+  pack_per_item_s: 8
+  dispatch_handover_s: 5
+  dispatch_load_s: 12
+  battery_per_m: 0.12           # % per metre travelled
+  battery_per_work_s: 0.02      # % per second of work
+  low_battery_pct: 20
+
+samg:                            # how warehouse orders become a SAMG mission
+  deadline_s: 600                # mission deadline used for SAMG's duration term T
+  handoff_delay_s_per_hop: 3.0   # coordination latency per graph hop (warehouse network)
+  hop_failure_probability: 0.02
+  comm_failure_probability: 0.45 # used by the "communication failure" injection
+  resource_budget: 10.0          # per robot, resource units per mission
+  priority_weight: {CRITICAL: 3.0, HIGH: 2.0, NORMAL: 1.0, LOW: 0.5}
+  dock_by_priority: {CRITICAL: D1, HIGH: D2, NORMAL: D3, LOW: D3}
+
+orders:                          # the deterministic order book (deadline = clock time)
+  - {id: W001, priority: CRITICAL, deadline: "09:45:30", items: [SKU-101, SKU-305]}
+  - {id: W002, priority: HIGH,     deadline: "09:46:30", items: [SKU-205, SKU-402]}
+  - {id: W003, priority: NORMAL,   deadline: "09:48:00", items: [SKU-118, SKU-316, SKU-433]}
+  - {id: W004, priority: LOW,      deadline: "09:50:00", items: [SKU-508]}
+
+learning:                        # adaptive policy warm-up on generated order books (never the demo orders)
+  alpha: 0.3
+  experience: 12                 # generated warehouse missions learned before the shown one
+  training_seed_base: 9000
+  comparison_seeds: [101, 102, 103]
+
+scenarios:
+  judge_demo:
+    label: "Judge demo: congestion, robot failure, malicious report"
+    seed: 11
+    policy: adaptive
+    injections:
+      - {kind: robot_failure, robot: "auto:TRANSPORT"}   # the robot SAMG assigns the first TRANSPORT
+      - {kind: malicious_report, robot: "auto:PICK"}     # the robot SAMG assigns the first PICK
+  clean:
+    label: "Clean operations"
+    seed: 11
+    policy: adaptive
+    injections: []

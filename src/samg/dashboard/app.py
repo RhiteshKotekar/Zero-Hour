@@ -8,16 +8,19 @@ from __future__ import annotations
 
 import streamlit as st
 
-from samg.dashboard import view_eval, view_mission, view_security
+from samg.dashboard import view_eval, view_mission, view_security, view_warehouse
 
 
 def main() -> None:
-    st.set_page_config(page_title="SAMG dashboard", layout="wide")
+    st.set_page_config(page_title="Zero-Hour · SAMG", layout="wide")
     st.title("SAMG: Secure Adaptive Mission Graphs")
     st.caption("All randomness seeded; simulated time. Panels are labelled LIVE (computed now), REPLAYED "
                "(loaded from a saved deterministic run), AGGREGATE (saved evaluation) or SHADOW "
                "(evaluation-only, never learned). Trust boundary: the simulated witness is assumed honest.")
-    tab1, tab2, tab3 = st.tabs(["Mission Control", "Adaptive Evaluation Lab", "Security & Attack Lab"])
+    tab0, tab1, tab2, tab3 = st.tabs(["Warehouse Digital Twin", "Mission Control", "Adaptive Evaluation Lab",
+                                      "Security & Attack Lab"])
+    with tab0:
+        view_warehouse.render()
     with tab1:
         view_mission.render()
     with tab2:

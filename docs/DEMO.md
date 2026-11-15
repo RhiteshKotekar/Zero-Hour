@@ -114,3 +114,36 @@ Demo settings are not experiment results. `alpha = 0.3` was chosen so a 30-missi
 converges; it is not the frozen `config/experiment.yaml` value. Reward gaps between topologies are small
 (about 0.01–0.03), so Section 2 is an illustration, not a held-out claim. The trust assumption is that the
 simulated witness is honest (brief §8.5).
+
+## Dashboard (Streamlit)
+
+A thin local UI over the same functions the CLI uses (brief §15). It holds no business logic: every number
+comes from `run_single_mission`, `execute_mission`, `feasible_topologies` or `run_experiment_a`, reshaped for
+display by `src/samg/dashboard/data.py`.
+
+```powershell
+.venv\Scripts\python -m pip install streamlit plotly   # already listed in pyproject dependencies
+.venv\Scripts\streamlit run src/samg/dashboard/app.py
+```
+
+Headless check: `streamlit run src/samg/dashboard/app.py --server.headless true --server.port 8765`, then
+`http://localhost:8765/_stcore/health` returns `ok`. Uses `width="stretch"` for charts and tables, so it needs a
+recent Streamlit (tested with 1.67).
+
+Every run shows the mission ID, the config ID (`config_hash` of topology costs, allocation, reward and security
+configs) and the seed. Each panel is labelled LIVE (computed now), REPLAYED (saved deterministic run),
+AGGREGATE (saved evaluation) or SHADOW (evaluation only, never learned). Both labs with editable inputs have a
+**Reset to saved demo configuration** button (judge mission, seed 7, adaptive LinUCB, alpha 0.3, CP-SAT).
+
+| Tab | What it shows | Live or loaded |
+| --- | --- | --- |
+| Mission Control | Seed, judge or generated scenario (factor selectors), adaptive (LinUCB/UCB1) or fixed topology. Context vector, D030 eligibility with reasons, mean/bonus/score per arm and the choice, Plotly coordination graph (fixed agent positions, coordinators in red), assignment table and planned-vs-simulated Gantt, handoffs with `h0 + h1*hops` and the parameter values, simulator transitions, per-event validation trace, episode decision, ACP reward breakdown (term, weight, contribution), guarded update (applied or refused, `b` before/after). Expander: every eligible topology on the same mission and seed side by side (shadow, not fed to the learner). | Live. Fixed mode uses a fixed-topology policy, so LinUCB is never updated |
+| Adaptive Evaluation Lab | Loads `artifacts/experiments/experiment_a*.json` (`ExperimentResult.model_dump_json()`): policy table with mean, std, 95% bootstrap CI, regret; paired comparisons; training learning curve (running mean of measured rewards); selection by family; seen vs held-out combos; the experiment config. With no file it says so and shows no numbers. | Aggregate (saved). A **development mode** button runs a tiny live `run_experiment_a` (6 train / 4 test, greedy), clearly marked as not the held-out evaluation |
+| Security & Attack Lab | Trust-boundary box. Attack setup (compromised agent, preferred topology, inflation/deflation, schedule). Anatomy of the attacked judge mission: per-event auth stage (signature, role, freshness) and evidence stage with reason codes; episode decision; what S2 and S1 learned. Attack window S1 vs S2 from the same pre-attack state, summary counts, parameter divergence (A, b, theta per arm) and next-choice difference. | Saved `artifacts/experiments/experiment_c*.json` shown as raw JSON if present (REPLAYED); otherwise a live small run (same protocol as `samg demo` section 3) |
+
+Development-mode executor: `samg.evaluation.executor.OrchestrationExecutor` is used if it exists; otherwise the
+dashboard falls back to `data._DashboardExecutor`, a 10-line adapter that maps `execute_mission` onto
+`MissionResult` (no persistence). The page names which one ran.
+
+Tests: `pytest tests/unit/dashboard` (AppTest render, mission run, reset; helper consistency against the
+records). They skip if Streamlit is not installed.

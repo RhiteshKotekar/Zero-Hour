@@ -2,7 +2,26 @@
 
 SAMG is a **controlled Python simulation** for studying adaptive coordination among heterogeneous autonomous agents. It compares organisational topologies, allocates constrained tasks, simulates outcomes, and protects learning from dishonest—but correctly signed—reports.
 
-**Status (`main` at `591d490`).** The end-to-end vertical slice works and is deterministic: mission → topology choice → graph → CP-SAT allocation → simulation → signed witness and agent events → ACP admission → guarded LinUCB update → SQLite. It runs from the terminal (`python -m samg demo`), and 298 tests pass. In progress: Experiments A/B (results not yet measured), the Experiment C harness, and the Streamlit dashboard. Some modules are minimal integration versions. Details are in [DEMO.md](docs/DEMO.md#complete-vs-minimal) and [WORK_QUEUE.md](docs/WORK_QUEUE.md).
+**Status (`main`).** The end-to-end SAMG implementation is complete and verified with **383 passing tests**: mission → topology choice → graph → CP-SAT allocation → simulation → signed witness and agent events → ACP admission → guarded LinUCB update → SQLite. Features an interactive **3D Warehouse Digital Twin**, a real-time **FastAPI streaming backend**, a modern **Next.js 3D Control Center**, and an industrial **Streamlit dashboard**. Run from terminal (`python -m samg demo`), or start the full control center stack. Details are in [DEMO.md](docs/DEMO.md#complete-vs-minimal) and [WORK_QUEUE.md](docs/WORK_QUEUE.md).
+
+## Quick Start: Digital Twin & Control Center
+
+Launch the full autonomous fleet control center stack:
+
+```bash
+# 1. FastAPI Real-Time Streaming Backend (Port 8000)
+python -m samg.api --host 0.0.0.0 --port 8000
+
+# 2. Next.js 16 + React Three Fiber 3D Control Center (Port 3000)
+cd web && npm run dev
+
+# 3. Streamlit Mission Control & 3D Warehouse Dashboard (Port 8501)
+streamlit run src/samg/dashboard/app.py
+```
+
+- **Next.js 3D Web Control Center:** [http://localhost:3000](http://localhost:3000)
+- **FastAPI State & WebSocket API:** [http://localhost:8000](http://localhost:8000)
+- **Streamlit Mission Control Dashboard:** [http://localhost:8501](http://localhost:8501)
 
 ## What SAMG demonstrates
 
@@ -13,7 +32,7 @@ Task allocation in the MVP and in all main experiments uses OR-Tools CP-SAT with
 
 SAMG does not control physical robots, drones, or live operational systems. All agents, reports, evidence, and adversaries are simulated.
 
-## Architecture at a glance
+## Architecture at a glance 
 
 ```text
 Scenario (MissionSpec + AgentProfiles + permitted links)
@@ -91,8 +110,12 @@ The MVP needs no PyTorch, GPU or NPU. The deferred neural baseline ([D027](docs/
 ## Repository map
 
 ```text
-config/         YAML parameters: topology costs, allocation, reward, experiment, security policy
+config/         YAML parameters: topology costs, allocation, reward, experiment, security, twin
+web/            Next.js 16 + React Three Fiber 3D Warehouse Control Center
 src/samg/
+  api/          FastAPI live state streaming and WebSocket service
+  twin/         Live Digital Twin simulation, environmental agents and real-time models
+  warehouse/    Physical fulfillment domain adapter, layout, A* routing, congestion
   domain/       Shared typed contracts: mission, graph, plan, trace, events, episodes, canonical bytes
   topology/     Coordination graph templates and graph-derived costs
   context/      ctx-v1 context features [1, d, h, r, a]
@@ -103,11 +126,10 @@ src/samg/
   learning/     LinUCB, UCB1, fixed baselines, VulnerableLinUCB (Experiment C only), protected gate
   persistence/  Append-only SQLite schema and repositories
   evaluation/   Experiment A/B runner, metrics, landscape analysis, attack configuration
-  dashboard/    Streamlit views (in progress; the CLI is the fallback)
+  dashboard/    Streamlit views: 3D Warehouse Digital Twin, Mission Control, Eval Lab, Security Lab
   orchestration.py, cli.py, demo.py   the mission loop and the `python -m samg` CLI
-  nco/          (later, optional) neural allocator baseline; not created for the MVP
 docs/           Plans, decisions, demo, work queue, design docs
-tests/          Unit, contract and integration test suites
+tests/          Unit, contract and integration test suites (383 passing tests)
 ```
 
 ## Start here

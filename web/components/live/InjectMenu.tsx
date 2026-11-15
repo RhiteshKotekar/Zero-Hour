@@ -69,7 +69,7 @@ export function InjectMenu({ className }: InjectMenuProps) {
   return (
     <div ref={ref} className={`relative ${className ?? ""}`}>
       <button className={`btn ${open ? "on" : ""}`} onClick={() => setOpen(!open)} title={live ? "" : "Injections need a live session"}>
-        ⚡ Inject ▾
+        Inject ▾
       </button>
       {open && (
         <div className="absolute right-0 top-full z-50 mt-1.5 w-[350px] rounded-[10px] border border-line bg-panel p-3 shadow-[0_8px_28px_rgba(11,18,32,0.14)]">

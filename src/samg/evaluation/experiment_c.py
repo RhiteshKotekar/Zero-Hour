@@ -229,6 +229,7 @@ def report_counts(records: Sequence[MissionRunRecord], mode: PolicyMode) -> dict
                 reasons[f"{f.status.value}:{rc.value}"] += 1
             if ev.event_id in false_ids:
                 c["unsupported_submitted"] += 1
+                c[f"unsupported_type_{ev.event_type.value}"] += 1
                 c["unsupported_authenticated"] += int(a.status is EventStatus.AUTHENTICATED)
                 c[f"unsupported_final_{f.status.value}"] += 1
                 if mode is PolicyMode.VULNERABLE:

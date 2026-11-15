@@ -32,6 +32,11 @@ The queue is worked in order, top to bottom. Each finished item that produces a 
 | 24 | queued | A | VAL-001: frozen A/B result differs across environments (Linux/Py 3.14 vs Windows/Py 3.12; P3−P1 −0.0059 vs −0.0013, same config hash). Find the source (OR-Tools/CP-SAT version or platform, numpy, float order), record full environment in every manifest, state reproduction scope in RESULTS | Cause identified; manifests carry environment |
 | 25 | queued | A+B | Duplicate code: `samg.twin` re-implements `samg.warehouse` (same module names) — Streamlit/orchestration/engine use `samg.warehouse`, the FastAPI server uses `samg.twin`. Agree on one package, keep the other as a thin re-export or delete | One warehouse package; all UIs green |
 | 26 | queued | V | VAL-002: complete the INV-01…INV-09 trace table from the brief's §8.9 wording | Trace table filled |
+| 27 | next | A | Model v2 steps 1–2 (opt-in, demo byte-identical): comm-loss task failure with one retry, real deadlines, relay queueing; evidence gate counts BLOCKED-after-witnessed-failure as final (needs Dev B sign-off); design-seed landscape check | Rules + tests; landscape verdict |
+| 28 | queued | A | Conventional baseline core (`samg.baseline`): greedy travel-aware dispatcher over a controller star, claim-trusting execution, `RunSpec.mode`, common random numbers — see `BASELINE_PLAN.md` | Brief tests 1–7 pass |
+| 29 | queued | A | Warehouse scenarios W1–W6, `samg.experiments.run` / `.compare`, results + manifest | 10-seed comparison runs |
+| 30 | queued | A | Comparison ladder (B0 baseline → B1 +CP-SAT → B2 +witness → SAMG) on 10 then 30 seeds; `RESULTS_BASELINE.md` | Measured tables, RQ1–RQ6 answered |
+| 31 | queued | A+B | Streamlit comparison tab, then web mode selector and side-by-side 3D | Real data only |
 
 ## Results log
 

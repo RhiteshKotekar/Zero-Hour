@@ -75,14 +75,18 @@ def render() -> None:
     files = data.saved_files("experiment_a*.json") + data.saved_files("experiment_ab*.json")
     files = sorted(set(files))
     if not files:
-        st.warning(f"No saved run found in `{data.ARTIFACTS}` — run `scripts/run_experiment_a.py` to produce "
-                   "`artifacts/experiments/experiment_a*.json` (an `ExperimentResult.model_dump_json()` file). "
+        st.warning(f"No saved experiment found in `{data.ARTIFACTS}` — run "
+                   "`python scripts/run_experiment_a.py` to produce "
+                   "`artifacts/experiments/experiment_a.json` "
+                   "(a full `ExperimentResult.model_dump_json()` file). "
                    "No numbers are shown until a real run exists.")
     else:
         choice = st.selectbox("Saved experiment", [f.name for f in files], key="ev_file")
         path = Path(data.ARTIFACTS) / choice
         try:
             render_result(data.load_experiment_result(path), "AGGREGATE", f"saved file {choice}")
+        except data.ExperimentLoadError as exc:
+            st.error(str(exc))
         except Exception as exc:
             st.error(f"Could not load {choice}: {type(exc).__name__}: {exc}")
 

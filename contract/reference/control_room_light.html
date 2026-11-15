@@ -1,0 +1,881 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zero-Hour mission control</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#eef1f5; --panel:#ffffff; --panel2:#f8fafc; --line:#e2e7ef; --line2:#cfd6e2;
+  --ink:#0b1220; --ink2:#3d4a5f; --muted:#7b8699; --faint:#a9b2c1;
+  --accent:#2563eb; --accent-bg:#eaf1ff;
+  --ok:#059669; --ok-bg:#e7f7f1; --warn:#c2700a; --warn-bg:#fdf3e3; --bad:#d92d2d; --bad-bg:#fdecec;
+  --sec:#7c3aed; --sec-bg:#f2ecfe; --samg:#0e7490; --samg-bg:#e6f4f7;
+  --pick:#2563eb; --transport:#0d9488; --pack:#7c3aed; --dispatch:#ea580c; --control:#0b1220;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:13px/1.45 Inter,"Segoe UI",system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.app{padding:14px 16px 18px;display:flex;flex-direction:column;gap:10px;min-width:1100px}
+/* header */
+.hdr{display:flex;align-items:center;gap:18px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 16px}
+.brand{display:flex;align-items:center;gap:12px}
+.logo{width:30px;height:30px;border-radius:7px;background:var(--ink);display:grid;place-items:center}
+.brand h1{margin:0;font-size:15px;letter-spacing:.14em;font-weight:800}
+.brand small{display:block;font-size:10px;letter-spacing:.2em;color:var(--muted);font-weight:600}
+.hstats{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap;justify-content:flex-end}
+.hs{border:1px solid var(--line);border-radius:7px;padding:4px 10px;background:var(--panel2);min-width:96px}
+.hs label{display:block;font-size:9.5px;letter-spacing:.14em;color:var(--muted);font-weight:700;text-transform:uppercase}
+.hs b{font-size:12.5px;font-weight:700}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:1px}
+.pulse{animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.35}}
+/* control bar */
+.ctrl{display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 12px}
+.btn{border:1px solid var(--line2);background:#fff;color:var(--ink);border-radius:7px;padding:6px 11px;font:600 12px Inter,sans-serif;cursor:pointer;display:inline-flex;gap:6px;align-items:center;white-space:nowrap}
+.btn:hover{background:var(--panel2)} .btn.primary{background:var(--ink);color:#fff;border-color:var(--ink)} .btn.primary:hover{background:#1e293b}
+.btn.on{background:var(--accent-bg);border-color:#9bb8f5;color:var(--accent)}
+.btn.demo{border-color:#c4b2f7;color:var(--sec)} .btn.demo.on{background:var(--sec);color:#fff;border-color:var(--sec)}
+.seg{display:inline-flex;border:1px solid var(--line2);border-radius:7px;overflow:hidden}
+.seg button{border:0;border-right:1px solid var(--line);background:#fff;padding:6px 9px;font:600 11.5px var(--mono);cursor:pointer;color:var(--ink2)}
+.seg button:last-child{border-right:0} .seg button.on{background:var(--ink);color:#fff}
+.tl{flex:1;position:relative;height:30px;margin:0 6px;cursor:pointer}
+.tl .track{position:absolute;left:0;right:0;top:13px;height:4px;border-radius:3px;background:#e8ecf2}
+.tl .fill{position:absolute;left:0;top:13px;height:4px;border-radius:3px;background:var(--ink)}
+.tl .band{position:absolute;top:4px;height:22px;border-radius:5px;border:1px dashed var(--line2);font:600 9px var(--mono);color:var(--muted);padding:1px 5px}
+.tl .mk{position:absolute;top:9px;width:3px;height:12px;border-radius:2px;transform:translateX(-1px)}
+.tl .head{position:absolute;top:7px;width:14px;height:16px;border-radius:4px;background:var(--ink);transform:translateX(-7px);box-shadow:0 2px 6px rgba(11,18,32,.25)}
+.clock{font:600 13px var(--mono);min-width:150px;text-align:right}
+/* pipeline */
+.pipe{display:flex;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:7px 8px;overflow:hidden}
+.st{flex:1;position:relative;padding:5px 8px 5px 10px;border-radius:6px;background:var(--panel2);border:1px solid transparent;min-width:0;transition:all .3s}
+.st label{display:block;font-size:9px;letter-spacing:.13em;font-weight:700;color:var(--faint);text-transform:uppercase;white-space:nowrap}
+.st b{display:block;font-size:11px;font-weight:600;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.st.done label{color:var(--muted)} .st.done b{color:var(--ink2)}
+.st.active{background:var(--ink);border-color:var(--ink)} .st.active label{color:#9fb0c9} .st.active b{color:#fff}
+.st.alert.active{background:var(--bad)} .st.sec.active{background:var(--sec)}
+/* layout */
+.main{display:grid;grid-template-columns:minmax(0,1.62fr) minmax(380px,1fr);gap:10px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.ch{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--line)}
+.ch h2{margin:0;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:800}
+.ch .sub{color:var(--muted);font-size:11px}
+.ch .r{margin-left:auto;display:flex;gap:6px;align-items:center}
+.tog{font:600 10.5px Inter;border:1px solid var(--line2);border-radius:999px;padding:3px 9px;background:#fff;color:var(--muted);cursor:pointer}
+.tog.on{color:var(--ink);border-color:var(--ink2)}
+.mapwrap{position:relative;background:#f6f8fb}
+svg.map{display:block;width:100%;height:auto}
+.banner{position:absolute;left:14px;right:14px;top:12px;background:rgba(255,255,255,.96);border:1px solid var(--line2);border-left:4px solid var(--sec);border-radius:8px;padding:10px 14px;box-shadow:0 10px 30px rgba(15,23,42,.12);display:none}
+.banner.show{display:block;animation:drop .35s ease}
+.banner label{font:700 10px Inter;letter-spacing:.16em;color:var(--sec)}
+.banner h3{margin:2px 0 3px;font-size:15px}
+.banner p{margin:0;color:var(--ink2);font-size:12.5px}
+@keyframes drop{from{opacity:0;transform:translateY(-6px)}}
+.legend{display:flex;gap:14px;padding:7px 12px;border-top:1px solid var(--line);font-size:11px;color:var(--ink2);flex-wrap:wrap}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.alerts{position:absolute;right:12px;bottom:12px;display:flex;flex-direction:column;gap:6px;align-items:flex-end;pointer-events:none}
+.toast{background:#fff;border:1px solid var(--line2);border-left:4px solid var(--warn);border-radius:7px;padding:7px 11px;font-size:12px;box-shadow:0 8px 24px rgba(15,23,42,.12);max-width:330px;animation:drop .3s ease}
+.toast b{display:block;font-size:10px;letter-spacing:.14em;text-transform:uppercase}
+.toast.bad{border-left-color:var(--bad)} .toast.bad b{color:var(--bad)} .toast.sec{border-left-color:var(--sec)} .toast.sec b{color:var(--sec)}
+.toast.warn b{color:var(--warn)} .toast.ok{border-left-color:var(--ok)} .toast.ok b{color:var(--ok)}
+/* KPIs */
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid var(--line)}
+.kpi{padding:9px 12px;border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+.kpi:nth-child(5n){border-right:0}
+.kpi b{display:block;font:700 19px var(--mono);letter-spacing:-.02em}
+.kpi label{font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.kpi small{display:block;color:var(--faint);font-size:10.5px}
+/* side */
+.side{display:flex;flex-direction:column;gap:10px;min-width:0}
+.counters{display:grid;grid-template-columns:repeat(6,1fr);border-bottom:1px solid var(--line)}
+.counters div{padding:8px 10px;border-right:1px solid var(--line)} .counters div:last-child{border-right:0}
+.counters b{display:block;font:700 17px var(--mono)} .counters label{font-size:9px;letter-spacing:.12em;color:var(--muted);font-weight:700;text-transform:uppercase}
+.orders{padding:6px 10px 10px;display:grid;gap:6px}
+.order{display:grid;grid-template-columns:58px 1fr auto;gap:10px;align-items:center;padding:7px 9px;border:1px solid var(--line);border-radius:8px}
+.order .id{font:700 12px var(--mono)}
+.pri{font:700 9px Inter;letter-spacing:.1em;padding:2px 6px;border-radius:4px;display:inline-block;margin-top:2px}
+.pri.CRITICAL{background:var(--bad-bg);color:var(--bad)} .pri.HIGH{background:var(--warn-bg);color:var(--warn)} .pri.NORMAL{background:var(--accent-bg);color:var(--accent)} .pri.LOW{background:#eef1f5;color:var(--ink2)}
+.steps{display:flex;gap:3px} .steps i{flex:1;height:7px;border-radius:2px;background:#e6eaf0;position:relative}
+.steps i.EXECUTING{background:#fbbf24} .steps i.REPORTED_COMPLETE{background:#93c5fd} .steps i.VERIFIED_COMPLETE{background:var(--ok)}
+.steps i.FAILED{background:var(--bad)} .steps i.BLOCKED,.steps i.REPLANNED{background:repeating-linear-gradient(45deg,#f59e0b 0 3px,#fde68a 3px 6px)} .steps i.ASSIGNED{background:#cbd5e1}
+.order .meta{font-size:10.5px;color:var(--muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ost{font:700 9.5px Inter;letter-spacing:.1em;text-transform:uppercase;text-align:right}
+.ost small{display:block;font:500 10px var(--mono);color:var(--muted);letter-spacing:0;text-transform:none}
+/* topology */
+.topo{display:grid;grid-template-columns:200px 1fr;gap:0}
+.topo svg{display:block;background:var(--panel2);border-right:1px solid var(--line)}
+.arms{padding:8px 12px}
+.arm{margin:3px 0 7px}
+.arm .h{display:flex;justify-content:space-between;font-size:11.5px;font-weight:600}
+.arm .h span:last-child{font:600 11px var(--mono);color:var(--ink2)}
+.arm.sel .h span:first-child{color:var(--accent)} .arm.off{opacity:.45}
+.bar{height:7px;background:#eef1f5;border-radius:3px;position:relative;overflow:hidden;margin-top:3px}
+.bar .m{position:absolute;left:0;top:0;bottom:0;background:var(--accent)} .bar .b{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(45deg,#a5b4fc 0 3px,#c7d2fe 3px 6px)}
+.arm small{color:var(--muted);font-size:10.5px}
+.ctx{padding:7px 12px 10px;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(2,1fr);gap:4px 14px}
+.ctx div{display:grid;grid-template-columns:1fr 34px;gap:6px;align-items:center;font-size:11px;color:var(--ink2)}
+.ctx .bar{grid-column:1/3;margin:0;height:4px} .ctx .bar .m{background:var(--samg)}
+.decision{display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:1px solid var(--line);background:var(--samg-bg);font-size:11.5px}
+.decision b{font-size:12.5px}
+/* allocation */
+.tablewrap{max-height:255px;overflow:auto}
+table{width:100%;border-collapse:collapse;font-size:11.5px}
+th{position:sticky;top:0;background:var(--panel2);text-align:left;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding:6px 10px;border-bottom:1px solid var(--line);font-weight:700}
+td{padding:5px 10px;border-bottom:1px solid #eef1f5;white-space:nowrap}
+td.mono{font-size:11px}
+tr.re td{background:#fff8e6} tr.re td:first-child{box-shadow:inset 3px 0 0 var(--warn)}
+.sb{font:700 9.5px Inter;letter-spacing:.08em;padding:2px 6px;border-radius:4px;background:#eef1f5;color:var(--ink2)}
+.sb.EXECUTING,.sb.MOVING,.sb.PICKING,.sb.TRANSPORTING,.sb.PACKING{background:#fef3c7;color:#92400e}
+.sb.VERIFIED{background:var(--ok-bg);color:var(--ok)} .sb.REPORTED{background:#dbeafe;color:#1d4ed8}
+.sb.FAILED{background:var(--bad-bg);color:var(--bad)} .sb.BLOCKED,.sb.REPLANNED,.sb.WAITING{background:var(--warn-bg);color:var(--warn)}
+.agent{font:700 11px var(--mono);padding:1px 6px;border-radius:4px;color:#fff}
+/* security */
+.secwrap{padding:10px 12px}
+.flow{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:4px}
+.fs{border:1px solid var(--line);border-radius:8px;padding:7px 8px;background:var(--panel2);position:relative;opacity:.35;transition:opacity .35s}
+.fs.lit{opacity:1}
+.fs label{display:block;font-size:9px;letter-spacing:.12em;color:var(--muted);font-weight:700;text-transform:uppercase}
+.fs b{display:block;font-size:12px;margin-top:2px}
+.fs small{display:block;font-size:10px;color:var(--muted);line-height:1.3;margin-top:2px}
+.fs.good{border-color:#a7e3cd;background:var(--ok-bg)} .fs.good b{color:var(--ok)}
+.fs.bad{border-color:#f4b4b4;background:var(--bad-bg)} .fs.bad b{color:var(--bad)}
+.fs.violet{border-color:#d4c4fb;background:var(--sec-bg)} .fs.violet b{color:var(--sec)}
+.secline{display:flex;gap:10px;align-items:center;font-size:12px}
+.shield{width:34px;height:34px;border-radius:8px;display:grid;place-items:center;flex:none}
+.verdict{margin-top:8px;padding:8px 10px;border-radius:8px;font-size:12px;display:none}
+.verdict.show{display:block;animation:drop .35s}
+.verdict.bad{background:var(--bad);color:#fff} .verdict.ok{background:var(--ok-bg);color:var(--ok)}
+.claims{margin-top:8px;max-height:96px;overflow:auto;border-top:1px solid var(--line);padding-top:6px}
+.claims div{display:grid;grid-template-columns:62px 40px 1fr auto;gap:6px;font-size:11px;padding:1px 0}
+/* events */
+.bottom{display:grid;grid-template-columns:minmax(0,1.62fr) minmax(380px,1fr);gap:10px}
+.events{max-height:340px;overflow:auto}
+.ev{display:grid;grid-template-columns:70px 14px 1fr;gap:6px;padding:6px 12px;border-bottom:1px solid #f0f2f6;font-size:12px;animation:drop .3s}
+.ev .t{font:500 11px var(--mono);color:var(--muted)}
+.ev i{width:8px;height:8px;border-radius:50%;margin-top:5px}
+.ev b{font-weight:600} .ev span{color:var(--muted)}
+.ev.sec{background:#faf7ff} .ev.bad{background:#fffafa}
+.chips{display:flex;gap:4px}
+.chip{font:600 10.5px Inter;border:1px solid var(--line2);border-radius:999px;padding:2px 9px;cursor:pointer;color:var(--muted);background:#fff}
+.chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.robots{max-height:340px;overflow:auto}
+.rb{display:grid;grid-template-columns:44px 1fr 96px 54px;gap:8px;align-items:center;padding:6px 12px;border-bottom:1px solid #f0f2f6;font-size:11.5px}
+.batt{height:6px;border-radius:3px;background:#eef1f5;overflow:hidden} .batt i{display:block;height:100%;background:var(--ok)}
+/* comparison */
+.cmp table td,.cmp table th{text-align:right} .cmp table td:first-child,.cmp table th:first-child{text-align:left}
+.cmp .best{font-weight:700;color:var(--ok)}
+.cmp .note{padding:8px 12px;color:var(--muted);font-size:11.5px;border-top:1px solid var(--line)}
+.empty{padding:16px 12px;color:var(--muted);font-size:12px}
+.integrity{font-size:10.5px;color:var(--muted);padding:6px 2px 0}
+svg text{font-family:Inter,system-ui,sans-serif}
+.robot{transition:none}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="hdr">
+    <div class="brand">
+      <div class="logo"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M3 4h12L3 14h12" stroke="#fff" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div><h1>ZERO-HOUR</h1><small>SECURE ADAPTIVE MISSION CONTROL · SAMG</small></div>
+    </div>
+    <div class="hstats">
+      <div class="hs"><label>Simulation</label><b id="hSim"></b></div>
+      <div class="hs"><label>Scenario</label><b id="hScn"></b></div>
+      <div class="hs"><label>Topology</label><b id="hTopo"></b></div>
+      <div class="hs"><label>Mission</label><b id="hMis" class="mono"></b></div>
+      <div class="hs"><label>Policy</label><b id="hPol"></b></div>
+      <div class="hs"><label>Security</label><b id="hSec"></b></div>
+    </div>
+  </div>
+
+  <div class="ctrl">
+    <button class="btn primary" id="bPlay">▶ Start</button>
+    <button class="btn" id="bStep" title="advance 5 simulated seconds">⏭ Step</button>
+    <button class="btn" id="bReset">↻ Reset</button>
+    <div class="seg" id="speeds"><button data-s="0.5">0.5×</button><button data-s="1" class="on">1×</button><button data-s="2">2×</button><button data-s="5">5×</button></div>
+    <div class="tl" id="tl"><div class="track"></div><div class="fill" id="tlFill"></div><div class="head" id="tlHead"></div></div>
+    <span class="clock" id="clock"></span>
+    <button class="btn demo" id="bDemo">◉ Auto demo</button>
+  </div>
+
+  <div class="pipe" id="pipe"></div>
+
+  <div class="main">
+    <div class="card">
+      <div class="ch"><h2>Warehouse digital twin</h2><span class="sub" id="mapSub"></span>
+        <div class="r"><span class="tog on" data-l="routes">Routes</span><span class="tog on" data-l="coord">Coordination graph</span><span class="tog on" data-l="labels">Labels</span></div></div>
+      <div class="mapwrap"><svg class="map" id="map"></svg><div class="banner" id="banner"><label id="bnK"></label><h3 id="bnH"></h3><p id="bnP"></p></div><div class="alerts" id="alerts"></div></div>
+      <div class="legend">
+        <span><i style="background:var(--pick)"></i>Picking AMR</span><span><i style="background:var(--transport)"></i>Transport AMR</span>
+        <span><i style="background:var(--pack)"></i>Pack arm</span><span><i style="background:var(--dispatch)"></i>Dock loader</span>
+        <span><i style="background:#fde68a;border:1px solid #f59e0b"></i>Aisle lock / congestion</span>
+        <span><i style="background:none;border:1.5px dashed var(--ink2)"></i>Planned route</span>
+        <span style="margin-left:auto;color:var(--muted)">Grid 1 m · positions = planned A* routes traversed inside SAMG's execution windows</span>
+      </div>
+      <div class="kpis" id="kpis"></div>
+    </div>
+
+    <div class="side">
+      <div class="card">
+        <div class="ch"><h2>Mission status</h2><span class="sub" id="msSub"></span></div>
+        <div class="counters" id="counters"></div>
+        <div class="orders" id="orders"></div>
+      </div>
+      <div class="card">
+        <div class="ch"><h2>Coordination topology</h2><span class="sub" id="tpSub"></span></div>
+        <div class="topo"><svg id="tgraph" width="200" height="190" viewBox="0 0 200 190"></svg><div class="arms" id="arms"></div></div>
+        <div class="decision" id="decision"></div>
+        <div class="ctx" id="ctx"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottom">
+    <div class="card">
+      <div class="ch"><h2>Task allocation</h2><span class="sub" id="alSub"></span></div>
+      <div class="tablewrap"><table><thead><tr><th>Task</th><th>Agent</th><th>Priority</th><th>Status</th><th>ETA</th><th>Zone</th></tr></thead><tbody id="alloc"></tbody></table></div>
+    </div>
+    <div class="card" id="secCard">
+      <div class="ch"><h2>Assurance · security</h2><span class="sub">signed claim → signature → witness → ACP → learning</span></div>
+      <div class="secwrap" id="sec"></div>
+    </div>
+  </div>
+
+  <div class="bottom">
+    <div class="card">
+      <div class="ch"><h2>Live event stream</h2><span class="sub" id="evSub"></span>
+        <div class="r chips" id="evChips"></div></div>
+      <div class="events" id="events"></div>
+    </div>
+    <div class="card">
+      <div class="ch"><h2>Fleet</h2><span class="sub">status · task · battery · odometer</span></div>
+      <div class="robots" id="fleet"></div>
+    </div>
+  </div>
+
+  <div class="card cmp" id="cmpCard">
+    <div class="ch"><h2>Topology comparison</h2><span class="sub">same layout, orders, initial fleet and seeds for every policy</span></div>
+    <div id="cmp"></div>
+  </div>
+  <div class="integrity" id="integrity"></div>
+</div>
+
+<script id="state" type="application/json">__STATE_JSON__</script>
+<script id="compare" type="application/json">__COMPARE_JSON__</script>
+<script>
+"use strict";
+const S = JSON.parse(document.getElementById('state').textContent);
+const CMP = JSON.parse(document.getElementById('compare').textContent);
+const END = Math.max(S.end_s, 1);
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const ROLE = {picking:'#2563eb', transport:'#0d9488', packing:'#7c3aed', dispatch:'#ea580c', control:'#0b1220'};
+const LEVEL = {info:'#94a3b8', samg:'#0e7490', move:'#cbd5e1', warn:'#c2700a', ok:'#059669', bad:'#d92d2d', sec:'#7c3aed'};
+const NS = 'http://www.w3.org/2000/svg';
+function el(tag, attrs = {}, parent) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
+function clockAt(t) { const [h, m, s] = S.start_clock.split(':').map(Number); let x = h * 3600 + m * 60 + s + Math.floor(t);
+  return `${String(Math.floor(x / 3600) % 24).padStart(2, '0')}:${String(Math.floor(x / 60) % 60).padStart(2, '0')}:${String(x % 60).padStart(2, '0')}`; }
+const fmtS = s => s == null ? '—' : s >= 60 ? `${Math.floor(s / 60)}m ${String(Math.round(s % 60)).padStart(2, '0')}s` : `${s.toFixed(1)}s`;
+const pct = x => x == null ? '—' : `${Math.round(x * 100)}%`;
+
+// ---------------------------------------------------------------- static map
+const L = S.layout, map = $('map');
+map.setAttribute('viewBox', `-0.6 -0.9 ${L.width + 1.2} ${L.height + 1.6}`);
+const defs = el('defs', {}, map);
+defs.innerHTML = `
+  <pattern id="hatch" width="0.35" height="0.35" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="0.35" height="0.35" fill="#fff7e0"/><line x1="0" y1="0" x2="0" y2="0.35" stroke="#f3c26b" stroke-width="0.12"/></pattern>
+  <pattern id="block" width="0.4" height="0.4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="0.4" height="0.4" fill="#fde2e2"/><line x1="0" y1="0" x2="0" y2="0.4" stroke="#e45d5d" stroke-width="0.14"/></pattern>
+  <filter id="sh" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="0.06" stdDeviation="0.08" flood-color="#0b1220" flood-opacity="0.25"/></filter>`;
+const gFloor = el('g', {}, map), gZones = el('g', {}, map), gMark = el('g', {}, map), gStatic = el('g', {}, map);
+const gCong = el('g', {}, map), gCoord = el('g', {}, map), gRoutes = el('g', {}, map), gRobots = el('g', {}, map), gFx = el('g', {}, map), gLabels = el('g', {}, map);
+el('rect', {x: -0.2, y: -0.2, width: L.width + 0.4, height: L.height + 0.4, rx: 0.3, fill: '#ffffff', stroke: '#cfd6e2', 'stroke-width': 0.06}, gFloor);
+const ZONE_TINT = {RECEIVING:'#eef4ff', PARK:'#f1f5f9', CONTROL:'#eef0ff', CONSOLIDATION:'#fff8eb', PACKING:'#f5f0ff', STAGING:'#ecfaf6', REPLEN:'#f6f7f9', DISPATCH:'#fff3ea'};
+for (const z of L.zones) {
+  const [x0, y0, x1, y1] = z.rect;
+  if (ZONE_TINT[z.id]) el('rect', {x: x0 + 0.06, y: y0 + 0.06, width: x1 - x0 + 0.88, height: y1 - y0 + 0.88, rx: 0.18, fill: ZONE_TINT[z.id]}, gZones);
+  if (z.id.endsWith('AISLE')) {
+    el('rect', {x: x0, y: y0 + 0.05, width: x1 - x0 + 1, height: y1 - y0 + 0.9, fill: '#f8fafc'}, gZones);
+    el('line', {x1: x0 + 0.3, y1: (y0 + y1 + 1) / 2, x2: x1 + 0.7, y2: (y0 + y1 + 1) / 2, stroke: '#f3c26b', 'stroke-width': 0.05, 'stroke-dasharray': '0.4 0.3'}, gMark);
+  }
+  if (z.id === 'STORAGE') continue;                       // racks are labelled individually
+  const label = z.label.toUpperCase(), fit = Math.min(0.42, (x1 - x0 + 0.6) / (label.length * 0.66));
+  const tx = el('text', {x: x0 + 0.25, y: y0 + 0.2 + fit, 'font-size': fit, 'font-weight': 700, fill: '#8a94a6', 'letter-spacing': 0.03}, gLabels);
+  tx.textContent = label;
+}
+for (const w of L.walls) { const [x0, y0, x1, y1] = w; el('rect', {x: x0 + 0.15, y: y0, width: x1 - x0 + 0.7, height: y1 - y0 + 1, fill: '#cbd2dd', rx: 0.08}, gStatic); }
+const AISLE_RECT = {};
+for (const a of L.aisles) {
+  const [x0, y0, x1, y1] = a.rect;
+  AISLE_RECT[a.id] = a.rect;
+  el('rect', {x: x0 + 0.08, y: y0, width: x1 - x0 + 0.84, height: y1 - y0 + 1, fill: a.blocked ? 'url(#block)' : '#fbfcfd', stroke: a.blocked ? '#e45d5d' : '#e3e8ef', 'stroke-width': 0.04}, gStatic);
+  el('line', {x1: x0 + 0.5, y1: y0 + 0.2, x2: x0 + 0.5, y2: y1 + 0.8, stroke: '#e6eaf0', 'stroke-width': 0.04, 'stroke-dasharray': '0.25 0.25'}, gMark);
+  const t = el('text', {x: x0 + 0.5, y: y1 + 1.55, 'font-size': 0.36, 'text-anchor': 'middle', fill: a.blocked ? '#d92d2d' : '#a0a9b8', 'font-weight': 700}, gLabels);
+  t.textContent = a.id + (a.blocked ? ' ✕' : '');
+}
+for (const r of L.racks) {
+  const [x0, y0, x1, y1] = r.rect;
+  el('rect', {x: x0 + 0.06, y: y0 + 0.04, width: x1 - x0 + 0.88, height: y1 - y0 + 0.92, rx: 0.08, fill: '#334155'}, gStatic);
+  for (let y = y0 + 1; y <= y1; y++) el('line', {x1: x0 + 0.1, y1: y, x2: x1 + 0.9, y2: y, stroke: '#475569', 'stroke-width': 0.05}, gStatic);
+  el('line', {x1: x0 + 1, y1: y0 + 0.1, x2: x0 + 1, y2: y1 + 0.9, stroke: '#1e293b', 'stroke-width': 0.06}, gStatic);
+  const t = el('text', {x: (x0 + x1 + 1) / 2, y: y0 - 0.18, 'font-size': 0.48, 'text-anchor': 'middle', fill: '#334155', 'font-weight': 800}, gLabels);
+  t.textContent = 'RACK ' + r.id;
+}
+const ORDER_SKUS = new Set(S.orders.flatMap(o => o.items));
+for (const s of S.inventory) {
+  const [x, y] = s.cell, hot = ORDER_SKUS.has(s.sku);
+  const c = el('rect', {x: x + 0.22, y: y + 0.22, width: 0.56, height: 0.56, rx: 0.08, fill: s.stock === 0 ? '#ef4444' : hot ? '#fbbf24' : '#64748b', opacity: hot || s.stock === 0 ? 1 : 0.55}, gStatic);
+  const tt = el('title', {}, c); tt.textContent = `${s.sku} ${s.name} · stock ${s.stock} · ${s.aisle}`;
+}
+for (const st of L.stations) {
+  const [x0, y0, x1, y1] = st.rect, w = x1 - x0 + 1, h = y1 - y0 + 1;
+  if (st.kind === 'pack') {
+    el('rect', {x: x0 + 0.08, y: y0 + 0.08, width: w - 0.16, height: h - 0.16, rx: 0.2, fill: '#ffffff', stroke: '#a78bfa', 'stroke-width': 0.08}, gStatic);
+    el('rect', {x: x0 + 0.5, y: y0 + h / 2 - 0.25, width: w - 1, height: 0.5, rx: 0.1, fill: '#ede9fe'}, gStatic);
+  } else if (st.kind === 'dock') {
+    el('rect', {x: x0 + 0.05, y: y0 + 0.3, width: w - 0.1, height: 0.7, fill: '#fed7aa'}, gStatic);
+    for (let i = 0; i < w * 3; i++) el('rect', {x: x0 + 0.1 + i * 0.33, y: y0 + 0.82, width: 0.16, height: 0.18, fill: '#ea580c'}, gStatic);
+  } else {
+    el('rect', {x: x0 + 0.1, y: y0 + 0.1, width: w - 0.2, height: h - 0.2, rx: 0.15, fill: '#ecfdf5', stroke: '#6ee7b7', 'stroke-width': 0.06}, gStatic);
+    const t = el('text', {x: x0 + w / 2, y: y0 + h / 2 + 0.17, 'font-size': 0.5, 'text-anchor': 'middle'}, gStatic); t.textContent = '⚡';
+    continue;
+  }
+  const t = el('text', {x: x0 + w / 2, y: st.kind === 'dock' ? y0 + 0.2 : y0 + 0.62, 'font-size': 0.36, 'text-anchor': 'middle', fill: st.kind === 'pack' ? '#6d28d9' : '#9a3412', 'font-weight': 700}, gLabels);
+  t.textContent = st.label.replace('Pack station ', 'PACK ').toUpperCase();
+}
+for (const c of L.consolidation) {
+  const [x, y] = c.cell;
+  el('rect', {x: x + 0.12, y: y + 0.12, width: 0.76, height: 0.76, rx: 0.12, fill: '#fff', stroke: '#f59e0b', 'stroke-width': 0.06, 'stroke-dasharray': '0.15 0.08'}, gStatic);
+  const t = el('text', {x: x + 0.5, y: y + 0.63, 'font-size': 0.34, 'text-anchor': 'middle', fill: '#b45309', 'font-weight': 700}, gLabels); t.textContent = c.id;
+}
+// WMS hub tower in the control room
+const WMS = S.robots.find(r => r.lead);
+const WMS_POS = WMS ? [WMS.home[0] + 0.5, WMS.home[1] + 0.5] : [26.5, 1.5];
+const wmsG = el('g', {transform: `translate(${WMS_POS[0]},${WMS_POS[1]})`}, gStatic);
+el('rect', {x: -1.1, y: -0.62, width: 2.2, height: 1.24, rx: 0.22, fill: '#0b1220'}, wmsG);
+const wt = el('text', {x: 0, y: 0.13, 'font-size': 0.42, 'text-anchor': 'middle', fill: '#fff', 'font-weight': 800}, wmsG); wt.textContent = 'WMS';
+el('circle', {cx: 0.85, cy: -0.4, r: 0.12, fill: '#22c55e', class: 'pulse'}, wmsG);
+// congestion overlays per aisle
+const CONG = {};
+for (const a of L.aisles) {
+  const [x0, y0, x1, y1] = a.rect;
+  const r = el('rect', {x: x0 + 0.02, y: y0 - 0.05, width: x1 - x0 + 0.96, height: y1 - y0 + 1.1, rx: 0.12, fill: 'url(#hatch)', stroke: '#f59e0b', 'stroke-width': 0.07, opacity: 0}, gCong);
+  const badge = el('g', {opacity: 0}, gCong);
+  el('rect', {x: x0 - 1.6, y: y1 + 1.12, width: 4.2, height: 0.78, rx: 0.2, fill: '#c2700a', filter: 'url(#sh)'}, badge);
+  const bt = el('text', {x: x0 + 0.5, y: y1 + 1.64, 'font-size': 0.36, 'text-anchor': 'middle', fill: '#fff', 'font-weight': 700}, badge);
+  CONG[a.id] = {r, badge, bt};
+}
+
+// ---------------------------------------------------------------- robots
+const RB = {};
+const pathPos = (p, f) => { const n = p.length - 1; const k = Math.max(0, Math.min(n, f * n)); const i = Math.min(Math.floor(k), n - 1); const fr = n ? k - i : 0;
+  const a = p[Math.max(i, 0)], b = p[Math.min(i + 1, n)]; return [a[0] + (b[0] - a[0]) * fr + 0.5, a[1] + (b[1] - a[1]) * fr + 0.5, b[0] - a[0], b[1] - a[1]]; };
+const stationCenter = id => { const s = L.stations.find(x => x.id === id); const [x0, y0, x1, y1] = s.rect; return [(x0 + x1 + 1) / 2, (y0 + y1 + 1) / 2 + 0.35]; };
+for (const r of S.robots) {
+  if (!r.physical) continue;
+  const g = el('g', {class: 'robot'}, gRobots), col = ROLE[r.role] || '#334155';
+  const halo = el('circle', {r: 0.62, fill: 'none', stroke: col, 'stroke-width': 0.08, opacity: 0}, g);
+  const ring = el('circle', {r: 0.5, fill: '#fff', stroke: col, 'stroke-width': 0.1, filter: 'url(#sh)'}, g);
+  const body = el('rect', {x: -0.36, y: -0.36, width: 0.72, height: 0.72, rx: r.mobile ? 0.18 : 0.08, fill: col}, g);
+  const nose = el('path', {d: 'M0.28,-0.18 L0.5,0 L0.28,0.18 Z', fill: '#0b1220', opacity: r.mobile ? 0.85 : 0}, g);
+  const load = el('rect', {x: -0.2, y: -0.2, width: 0.4, height: 0.4, rx: 0.05, fill: '#fde68a', stroke: '#b45309', 'stroke-width': 0.05, opacity: 0}, g);
+  const tx = el('text', {y: -0.72, 'font-size': 0.4, 'text-anchor': 'middle', 'font-weight': 800, fill: '#0b1220', class: 'rlabel'}, g); tx.textContent = r.id;
+  const st = el('text', {y: 1.02, 'font-size': 0.3, 'text-anchor': 'middle', 'font-weight': 700, fill: '#64748b', class: 'rlabel'}, g);
+  const fail = el('g', {opacity: 0}, g);
+  el('circle', {r: 0.78, fill: 'none', stroke: '#d92d2d', 'stroke-width': 0.1, 'stroke-dasharray': '0.25 0.15'}, fail);
+  el('path', {d: 'M-0.25,-0.25 L0.25,0.25 M0.25,-0.25 L-0.25,0.25', stroke: '#fff', 'stroke-width': 0.12, 'stroke-linecap': 'round'}, fail);
+  const tip = el('title', {}, g);
+  const route = el('polyline', {fill: 'none', stroke: col, 'stroke-width': 0.09, 'stroke-dasharray': '0.22 0.16', 'stroke-linecap': 'round', opacity: 0.9}, gRoutes);
+  const future = el('polyline', {fill: 'none', stroke: col, 'stroke-width': 0.06, 'stroke-dasharray': '0.08 0.18', opacity: 0.45}, gRoutes);
+  const dest = el('circle', {r: 0.2, fill: '#fff', stroke: col, 'stroke-width': 0.08, opacity: 0}, gRoutes);
+  const segs = r.segments.map(s => ({...s, t1: s.t1 == null ? Infinity : s.t1}));
+  RB[r.id] = {r, g, ring, body, nose, load, st, fail, tip, route, future, dest, halo, col, segs,
+              fixed: r.mobile ? null : stationCenter(r.station)};
+}
+function robotAt(id, t) {
+  const R = RB[id], segs = R.segs;
+  let lo = 0, hi = segs.length - 1, k = -1;
+  while (lo <= hi) { const m = (lo + hi) >> 1; if (segs[m].t0 <= t) { k = m; lo = m + 1; } else hi = m - 1; }
+  const home = R.fixed ? [R.fixed[0], R.fixed[1]] : [R.r.home[0] + 0.5, R.r.home[1] + 0.5];
+  if (k < 0) return {x: home[0], y: home[1], status: 'IDLE', battery: R.r.battery0, odo: 0, seg: null, idx: -1};
+  const s = segs[k];
+  if (t >= s.t1) {   // after the segment: parked at its end
+    const end = s.kind === 'move' ? s.path[s.path.length - 1] : s.cell;
+    const p = R.fixed || [end[0] + 0.5, end[1] + 0.5];
+    const later = segs.slice(k + 1).length;
+    return {x: p[0], y: p[1], status: later ? 'IDLE' : (R.r.failed_at != null ? 'FAILED' : 'COMPLETED'), battery: s.b1, odo: s.o1, seg: null, idx: k};
+  }
+  const f = (t - s.t0) / Math.max(s.t1 - s.t0, 1e-9);
+  const b = s.b0 + (s.b1 - s.b0) * Math.min(f, 1), o = s.o0 + (s.o1 - s.o0) * Math.min(f, 1);
+  if (s.kind === 'move') { const [x, y, dx, dy] = pathPos(s.path, f); return {x, y, dx, dy, status: s.status, task: s.task, battery: b, odo: o, seg: s, idx: k, f}; }
+  const p = R.fixed || [s.cell[0] + 0.5, s.cell[1] + 0.5];
+  return {x: p[0], y: p[1], status: s.status, task: s.task, battery: b, odo: o, seg: s, idx: k};
+}
+
+// ---------------------------------------------------------------- derived lookups
+const TASK = Object.fromEntries(S.tasks.map(t => [t.id, t]));
+const ORDER = Object.fromEntries(S.orders.map(o => [o.id, o]));
+const ROBOT = Object.fromEntries(S.robots.map(r => [r.id, r]));
+function taskState(tid, t) { let s = null; for (const x of TASK[tid].states) { if (x.t <= t) s = x; else break; } return s; }
+function waveAt(t) { let w = S.waves[0]; for (const x of S.waves) if (x.t0 <= t) w = x; return w; }
+function assignmentAt(tid, t) { const as = TASK[tid].assignments; let a = as[0]; for (const x of as) { const w = S.waves.find(v => v.number === x.wave); if (w && w.t0 <= t) a = x; } return a; }
+const STATUS_LABEL = {VERIFIED_COMPLETE: 'VERIFIED', REPORTED_COMPLETE: 'REPORTED', EXECUTING: 'EXECUTING', ASSIGNED: 'ASSIGNED', OPEN: 'PENDING'};
+
+// ---------------------------------------------------------------- pipeline
+const STAGES = [
+  ['wh', 'Warehouse', ''], ['orders', 'Customer orders', ''], ['mission', 'SAMG mission', ''], ['topo', 'Topology', ''],
+  ['alloc', 'Allocation', ''], ['exec', 'Robot execution', ''], ['disrupt', 'Congestion / failure', 'alert'],
+  ['witness', 'Witness', ''], ['acp', 'Assurance (ACP)', 'sec'], ['reward', 'Secure reward', ''], ['learn', 'Adaptive decision', '']];
+$('pipe').innerHTML = STAGES.map(([k, l, c]) => `<div class="st ${c}" id="st-${k}"><label>${l}</label><b id="sb-${k}">—</b></div>`).join('');
+function stageOf(e) {
+  const T = e.title;
+  if (/^Order .* (received|on hold)/.test(T)) return 'orders';
+  if (/^Mission .* generated|^Replanning|^Context/.test(T)) return 'mission';
+  if (/selected|No eligible/.test(T)) return 'topo';
+  if (/allocation|reassigned/.test(T)) return 'alloc';
+  if (/^Congestion|FAILED$|failed$|blocked|Injection|Condition|Delay injected/.test(T)) return 'disrupt';
+  if (/^Witness/.test(T)) return 'witness';
+  if (/^SECURITY|^ACP/.test(T)) return 'acp';
+  if (/^Secure reward/.test(T)) return 'reward';
+  if (/update|no learning/.test(T)) return 'learn';
+  if (/dispatched/.test(T)) return 'witness';
+  return 'exec';
+}
+for (const e of S.events) e.stage = stageOf(e);
+
+// ---------------------------------------------------------------- timeline bar
+const tl = $('tl');
+for (const w of S.waves) {
+  const b = document.createElement('div'); b.className = 'band';
+  b.style.left = `${w.t0 / END * 100}%`; b.style.width = `${Math.max((w.t1 - w.t0) / END * 100 - 0.3, 1)}%`;
+  b.textContent = w.number === 1 ? `MISSION ${w.mission_id}` : `REPLAN ${w.mission_id}`; tl.appendChild(b);
+}
+const MARKS = S.events.filter(e => ['bad', 'sec'].includes(e.level) || e.title.startsWith('Congestion') || e.title === 'Replanning');
+for (const e of MARKS) { const m = document.createElement('div'); m.className = 'mk'; m.style.left = `${e.t / END * 100}%`;
+  m.style.background = e.level === 'sec' ? 'var(--sec)' : e.title.startsWith('Congestion') ? 'var(--warn)' : 'var(--bad)'; m.title = e.title; tl.appendChild(m); }
+const head = $('tlHead'); tl.appendChild(head);
+
+// ---------------------------------------------------------------- panels
+$('hScn').textContent = S.spec.scenario === 'judge_demo' ? 'Judge demo' : S.spec.label || S.spec.scenario;
+$('hPol').textContent = S.spec.policy_label.split('(')[0].trim();
+$('integrity').innerHTML = `Data provenance: every robot position, route, wait, task state, claim verdict, reward and topology score on this page comes from one deterministic run
+  (seed ${S.spec.seed}, ${esc(S.spec.policy_kind)}${S.spec.experience ? `, learner pre-trained on ${S.spec.experience} generated warehouse missions` : ''}${S.spec.injections.length ? ', injections: ' + esc(S.spec.injections.join('; ')) : ''}).
+  SAMG chooses the topology, allocates (CP-SAT), executes, verifies (witness + ACP) and learns; the warehouse layer translates orders and replays motion.
+  Simulated time; task-level SAMG execution with A* travel and aisle locks fed back as task delays.`;
+
+const KPI_DEF = [
+  ['ocr', 'Order completion', ''], ['ful', 'Avg fulfilment', 'witness-verified dispatch'], ['lat', 'Avg task latency', 'release → start'],
+  ['util', 'Robot utilization', 'mobile fleet busy share'], ['dist', 'Travel distance', 'all robots'], ['cong', 'Congestion time', 'aisle-lock waits'],
+  ['fail', 'Failed tasks', 'executed then failed'], ['secv', 'Security violations', 'claims disputed by ACP'], ['rew', 'Secure reward', 'ACP-recomputed'], ['topo', 'Current topology', 'SAMG selection']];
+$('kpis').innerHTML = KPI_DEF.map(([k, l, s]) => `<div class="kpi"><b id="k-${k}">—</b><label>${l}</label><small id="ks-${k}">${s}</small></div>`).join('');
+
+const MOBILE = S.robots.filter(r => r.mobile).map(r => r.id);
+const DISPUTED = S.claims.filter(c => c.evidence === 'DISPUTED');
+function kpisAt(t) {
+  const done = S.orders.filter(o => o.dispatched_at != null && o.dispatched_at <= t);
+  const lat = S.tasks.filter(x => x.verified_at != null && x.verified_at <= t && x.latency_s != null).map(x => x.latency_s);
+  let busy = 0, dist = 0, cong = 0;
+  for (const id in RB) for (const s of RB[id].segs) {
+    if (s.t0 > t) break;
+    const e = Math.min(s.t1, t);
+    if (MOBILE.includes(id) && ['move', 'work', 'wait'].includes(s.kind)) busy += e - s.t0;
+    if (s.kind === 'move') dist += (s.o1 - s.o0) * Math.min(1, (e - s.t0) / Math.max(s.t1 - s.t0, 1e-9));
+    if (s.kind === 'wait') cong += e - s.t0;
+  }
+  const fails = S.tasks.reduce((n, x) => n + x.states.filter(s => s.state === 'FAILED' && s.from === 'EXECUTING' && s.t <= t).length, 0);
+  const viol = DISPUTED.filter(c => c.t <= t).length;
+  const doneWaves = S.waves.filter(w => w.reward && w.t1 <= t + 1e-6);
+  const w = waveAt(t);
+  return {ocr: S.orders.length ? done.length / S.orders.length : null, ocrN: `${done.length}/${S.orders.length} orders dispatched`,
+    ful: done.length ? done.reduce((a, o) => a + o.dispatched_at, 0) / done.length : null,
+    lat: lat.length ? lat.reduce((a, b) => a + b, 0) / lat.length : null,
+    util: t > 0 ? busy / (MOBILE.length * t) : null, dist, cong, fails, viol,
+    rew: doneWaves.length ? doneWaves[doneWaves.length - 1].reward.value : null, rewW: doneWaves.length ? doneWaves[doneWaves.length - 1].mission_id : null,
+    topo: w.topology};
+}
+function renderKpis(t) {
+  const k = kpisAt(t);
+  $('k-ocr').textContent = pct(k.ocr); $('ks-ocr').textContent = k.ocrN;
+  $('k-ful').textContent = fmtS(k.ful); $('k-lat').textContent = fmtS(k.lat); $('k-util').textContent = pct(k.util);
+  $('k-dist').textContent = `${Math.round(k.dist)} m`; $('k-cong').textContent = fmtS(k.cong);
+  $('k-fail').textContent = k.fails; $('k-fail').style.color = k.fails ? 'var(--bad)' : '';
+  $('k-secv').textContent = k.viol; $('k-secv').style.color = k.viol ? 'var(--sec)' : '';
+  $('k-rew').textContent = k.rew == null ? 'pending' : k.rew.toFixed(3); $('ks-rew').textContent = k.rew == null ? 'after ACP admission' : `ACP-recomputed · ${k.rewW}`;
+  $('k-topo').textContent = (k.topo || '—').replace('_', ' '); $('k-topo').style.fontSize = '14px';
+  return k;
+}
+
+function orderStatus(o, t) {
+  if (o.hold) return ['ON HOLD', 'var(--warn)', o.hold_reason];
+  if (o.dispatched_at != null && o.dispatched_at <= t) return [o.on_time ? 'DISPATCHED' : 'DISPATCHED LATE', o.on_time ? 'var(--ok)' : 'var(--warn)', clockAt(o.dispatched_at)];
+  const sts = o.tasks.map(id => taskState(id, t)?.state || 'OPEN');
+  const late = t > o.deadline_s;
+  if (sts.some(s => s === 'FAILED' || s === 'BLOCKED' || s === 'REPLANNED')) return ['RECOVERING', 'var(--bad)', late ? 'past deadline' : `due ${o.deadline}`];
+  const kinds = o.tasks.map(id => TASK[id].kind);
+  const verified = k => o.tasks.filter((id, i) => kinds[i] === k).every(id => taskState(id, t)?.state === 'VERIFIED_COMPLETE');
+  let s = 'RECEIVED';
+  if (sts.some(x => x === 'EXECUTING' || x === 'REPORTED_COMPLETE' || x === 'VERIFIED_COMPLETE')) s = 'PICKING';
+  if (verified('PICK')) s = 'IN TRANSIT'; if (verified('TRANSPORT')) s = 'PACKING'; if (verified('PACK')) s = 'DISPATCHING';
+  return [s, late ? 'var(--bad)' : 'var(--ink2)', late ? 'past deadline' : `due ${o.deadline}`];
+}
+function renderMission(t) {
+  const states = S.tasks.map(x => taskState(x.id, t)?.state || 'OPEN');
+  const active = states.filter(s => s === 'EXECUTING' || s === 'ASSIGNED').length;
+  const doneN = states.filter(s => s === 'VERIFIED_COMPLETE').length;
+  const failed = S.tasks.reduce((n, x) => n + x.states.filter(s => s.state === 'FAILED' && s.from === 'EXECUTING' && s.t <= t).length, 0);
+  const delayed = S.orders.filter(o => !o.hold && t > o.deadline_s && !(o.dispatched_at != null && o.dispatched_at <= t)).length
+    + states.filter(s => s === 'BLOCKED' || s === 'REPLANNED').length;
+  const viol = DISPUTED.filter(c => c.t <= t).length;
+  $('counters').innerHTML = [['Orders', S.orders.length], ['Active tasks', active], ['Verified', `${doneN}/${S.tasks.length}`],
+    ['Delayed', delayed], ['Failed', failed], ['Security', viol ? `<span style="color:var(--sec)">${viol} ALERT</span>` : '<span style="color:var(--ok)">SECURE</span>']]
+    .map(([l, v]) => `<div><b>${v}</b><label>${l}</label></div>`).join('');
+  $('orders').innerHTML = S.orders.map(o => {
+    const [st, col, sub] = orderStatus(o, t);
+    const steps = o.tasks.map(id => `<i class="${taskState(id, t)?.state || ''}" title="${id}"></i>`).join('');
+    return `<div class="order"><div><div class="id">${o.id}</div><span class="pri ${o.priority}">${o.priority}</span></div>
+      <div><div class="steps">${steps}</div><div class="meta">${o.items.join(' · ')} → ${o.consolidation || '-'} → ${o.dock || '-'}</div></div>
+      <div class="ost" style="color:${col}">${st}<small>${esc(sub)}</small></div></div>`;
+  }).join('');
+  $('msSub').textContent = `${S.orders.length} orders · ${S.tasks.length} SAMG tasks`;
+  $('hSec').innerHTML = viol ? `<span style="color:var(--sec)">⚠ ${viol} rejected</span>` : '<span style="color:var(--ok)">● SECURE</span>';
+}
+
+// topology graph (positions are layout only; nodes and links come from the CoordinationGraph)
+let topoWave = null;
+function renderTopology(t) {
+  const w = waveAt(t);
+  $('hTopo').textContent = (w.topology || 'none').replace('_', ' ');
+  $('hMis').textContent = w.mission_id;
+  if (topoWave === w.number) return; topoWave = w.number;
+  const g = w.graph, svg = $('tgraph'); svg.innerHTML = '';
+  $('tpSub').textContent = `wave ${w.number} · ${w.mission_id}${w.number > 1 ? ' (replanned)' : ''}`;
+  if (g) {
+    const nodes = [...new Set(g.links.flat().concat(g.coordinators))];
+    S.robots.forEach(r => { if (!nodes.includes(r.id)) nodes.push(r.id); });
+    const pos = {}, hub = g.coordinators[0];
+    const cells = Object.entries(g.cells).filter(([k, v]) => !(v.length === 1 && v[0] === hub));
+    if (g.topology === 'FUNCTIONAL_CELL' && cells.length) {
+      pos[hub] = [100, 22];
+      cells.forEach(([c, members], i) => { const cx = 22 + i * (156 / Math.max(cells.length - 1, 1)); members.forEach((m, j) => pos[m] = [cx, 82 + j * 30]);
+        const tx = el('text', {x: cx, y: 70, 'font-size': 7.5, 'text-anchor': 'middle', fill: '#7b8699', 'font-weight': 700}, svg); tx.textContent = c.toUpperCase(); });
+    } else if (g.topology === 'HIERARCHICAL' && hub) {
+      pos[hub] = [100, 24]; const others = nodes.filter(n => n !== hub);
+      others.forEach((n, i) => { const row = i < 5 ? 0 : 1, k = row ? i - 5 : i, cnt = row ? others.length - 5 : Math.min(5, others.length);
+        pos[n] = [20 + k * (160 / Math.max(cnt - 1, 1)), 96 + row * 52]; });
+    } else {
+      nodes.forEach((n, i) => { const a = 2 * Math.PI * i / nodes.length - Math.PI / 2; pos[n] = [100 + 72 * Math.cos(a), 95 + 72 * Math.sin(a)]; });
+    }
+    for (const [a, b] of g.links) if (pos[a] && pos[b])
+      el('line', {x1: pos[a][0], y1: pos[a][1], x2: pos[b][0], y2: pos[b][1], stroke: a === hub || b === hub ? '#0b1220' : '#94a3b8', 'stroke-width': a === hub || b === hub ? 1.4 : 1.1, opacity: 0.75}, svg);
+    for (const n of nodes) {
+      if (!pos[n]) continue; const r = ROBOT[n], col = r ? ROLE[r.role] : '#334155', excl = w.excluded.includes(n);
+      const isCoord = g.coordinators.includes(n) || Object.values(g.cell_coordinators).includes(n);
+      el('circle', {cx: pos[n][0], cy: pos[n][1], r: n === hub ? 13 : 10, fill: excl ? '#f1f5f9' : col, stroke: isCoord ? '#f59e0b' : '#fff', 'stroke-width': isCoord ? 2.4 : 1.5, opacity: excl ? 0.6 : 1}, svg);
+      const tx = el('text', {x: pos[n][0], y: pos[n][1] + 3, 'font-size': n === hub ? 8 : 7.2, 'text-anchor': 'middle', fill: excl ? '#94a3b8' : '#fff', 'font-weight': 800}, svg);
+      tx.textContent = n;
+      if (excl) { const x = el('text', {x: pos[n][0] + 8, y: pos[n][1] - 7, 'font-size': 9, fill: '#d92d2d', 'font-weight': 800}, svg); x.textContent = '✕'; }
+    }
+    const lab = el('text', {x: 100, y: 184, 'font-size': 9, 'text-anchor': 'middle', fill: '#0b1220', 'font-weight': 800, 'letter-spacing': 1}, svg);
+    lab.textContent = g.topology.replace('_', ' ') + ` · ${g.links.length} links`;
+  }
+  const maxS = Math.max(...w.arms.map(a => a.score || 0), 0.01), learn = w.arms.some(a => a.bonus != null);
+  $('arms').innerHTML = `<div style="font-size:9.5px;letter-spacing:.12em;font-weight:700;color:var(--muted);margin-bottom:4px">${learn ? 'LINUCB SCORE = MEAN + UNCERTAINTY BONUS' : 'FIXED BASELINE'}</div>` +
+    w.arms.map(a => `<div class="arm ${a.selected ? 'sel' : ''} ${a.offered ? '' : 'off'}"><div class="h"><span>${a.selected ? '◆ ' : ''}${a.topology.replace('_', ' ')}</span><span>${!a.offered ? 'not eligible' : learn ? (a.score ?? 0).toFixed(3) : a.selected ? 'set by operator' : ''}</span></div>
+      ${learn && a.offered ? `<div class="bar"><div class="m" style="width:${(a.mean || 0) / maxS * 100}%"></div><div class="b" style="left:${(a.mean || 0) / maxS * 100}%;width:${(a.bonus || 0) / maxS * 100}%"></div></div>
+      <small>mean ${(a.mean ?? 0).toFixed(3)} + bonus ${(a.bonus ?? 0).toFixed(3)}</small>` : a.reasons.length ? `<small>${a.reasons.join(', ')}</small>` : ''}</div>`).join('');
+  const sel = w.arms.find(a => a.selected);
+  $('decision').innerHTML = `<span class="sb" style="background:var(--samg);color:#fff">ADAPTIVE DECISION</span>
+    <span>Selected <b>${(w.topology || 'none').replace('_', ' ')}</b> by <span class="mono">${esc(w.policy)}</span>${w.warmup ? ' · warm-up' : ''}${sel && sel.score != null && learn ? ` · highest score of ${w.arms.filter(a => a.offered).length} eligible` : ''}</span>`;
+  const NAMES = {dependency_density: 'Task dependency density', capability_heterogeneity: 'Fleet capability diversity', resource_scarcity: 'Resource pressure', agent_availability: 'Robot availability'};
+  $('ctx').innerHTML = w.context.filter(c => c.name !== 'intercept').map(c => `<div><span>${NAMES[c.name] || c.name}</span><span class="mono" style="text-align:right">${c.value.toFixed(2)}</span><div class="bar"><div class="m" style="width:${c.value * 100}%"></div></div></div>`).join('')
+    + `<div style="grid-column:1/-1;color:var(--muted);font-size:10.5px">Context vector ctx-v1 passed to the policy. The policy exposes scores, not reasons; no explanation is generated.</div>`;
+}
+
+function renderAlloc(t) {
+  const w = waveAt(t);
+  $('alSub').textContent = `${w.allocation ? w.allocation.solver + ' ' + (w.allocation.status || '') : 'no plan'} · wave ${w.number} · ${w.tasks.length} tasks${w.allocation?.objective ? ` · planned makespan ${fmtS(w.allocation.objective.makespan_s)}` : ''}`;
+  const rows = w.tasks.map(id => {
+    const x = TASK[id], a = assignmentAt(id, t), s = taskState(id, t);
+    let label = s ? (STATUS_LABEL[s.state] || s.state) : 'PENDING';
+    if (s?.state === 'EXECUTING' && a) { const rs = robotAt(a.agent, t); if (rs.task === id) label = rs.status; }
+    const eta = x.window && s?.state !== 'FAILED' ? clockAt(x.window[1]) : a ? clockAt(a.plan_end) : '—';
+    return {x, a, label, eta, re: a?.reassigned_from, order: ({EXECUTING: 0, MOVING: 0, PICKING: 0, TRANSPORTING: 0, PACKING: 0, WAITING: 0, ASSIGNED: 1, PENDING: 1, REPORTED: 2, BLOCKED: 2, FAILED: 2, VERIFIED: 3}[label] ?? 1)};
+  }).sort((p, q) => p.order - q.order || (p.a?.plan_start ?? 0) - (q.a?.plan_start ?? 0));
+  $('alloc').innerHTML = rows.map(({x, a, label, eta, re}) => `<tr class="${re ? 're' : ''}"><td class="mono">${x.id}</td>
+    <td>${a ? `<span class="agent" style="background:${ROLE[ROBOT[a.agent]?.role] || '#334155'}">${a.agent}</span>${re ? ` <span style="color:var(--warn);font-size:10.5px">↺ from ${re}</span>` : ''}` : '—'}</td>
+    <td><span class="pri ${x.priority}">${x.priority}</span></td><td><span class="sb ${label}">${label}</span></td><td class="mono">${eta}</td><td style="color:var(--ink2)">${esc(x.zone)}</td></tr>`).join('');
+}
+
+// security centerpiece: the most recent disputed claim (else the most recent claim)
+let secShown = null;
+function renderSecurity(t) {
+  const seen = S.claims.filter(c => c.t <= t);
+  const focus = [...seen].reverse().find(c => c.evidence === 'DISPUTED' && c.type !== 'REWARD_CLAIM') || [...seen].reverse().find(c => c.evidence === 'DISPUTED') || seen[seen.length - 1];
+  const fw = focus && S.waves.find(x => x.number === focus.wave);
+  const key = focus ? `${focus.id}|${fw && t >= fw.t1 - 1e-6}` : 'none';
+  const list = seen.slice(-40).reverse().map(c => `<div><span class="mono" style="color:var(--muted)">${clockAt(c.t)}</span><span class="mono">${c.agent}</span>
+      <span>${c.type === 'REWARD_CLAIM' ? `reward ${c.claimed_reward}` : `${c.type === 'TASK_STARTED' ? 'started' : 'done'} ${c.task}`}</span>
+      <span class="sb ${c.evidence === 'DISPUTED' ? 'FAILED' : c.evidence === 'CORROBORATED' ? 'VERIFIED' : ''}">${c.evidence || c.auth}</span></div>`).join('');
+  const stats = `${seen.length} signed claims processed · ${seen.filter(c => c.evidence === 'CORROBORATED').length} corroborated · <b style="color:${DISPUTED.some(c => c.t <= t) ? 'var(--sec)' : 'inherit'}">${seen.filter(c => c.evidence === 'DISPUTED').length} disputed</b>`;
+  if (key === secShown) { $('secList') && ($('secList').innerHTML = list); $('secStats') && ($('secStats').innerHTML = stats); return; }
+  secShown = key;
+  if (!focus) { $('sec').innerHTML = `<div class="empty">No signed claims yet. Each robot signs task claims with its Ed25519 key; the ACP checks every one against independent witness evidence.</div>`; return; }
+  const bad = focus.evidence === 'DISPUTED';
+  const w = S.waves.find(x => x.number === focus.wave);
+  const what = focus.type === 'REWARD_CLAIM' ? `Reward ${focus.claimed_reward}` : focus.type === 'TASK_STARTED' ? `Started ${focus.task}` : `${focus.task} completed`;
+  const witness = focus.type === 'REWARD_CLAIM' ? (bad ? 'Contradicted' : 'Supported') : focus.witness_state === 'VERIFIED_COMPLETE' ? 'Supports claim' : focus.witness_state ? `Saw ${focus.witness_state.replace('_', ' ')}` : 'No supporting evidence';
+  const admitted = w && t >= w.t1 - 1e-6;
+  const learnTxt = !admitted ? 'awaiting ACP episode admission' : w?.learning?.applied ? `Learner used ACP reward ${w.learning.reward} (${w.learning.source})` : w?.learning?.rejection ? `Update blocked: ${w.learning.rejection}` : 'No update (fixed baseline)';
+  $('sec').innerHTML = `
+    <div class="secline"><div class="shield" style="background:${bad ? 'var(--bad-bg)' : 'var(--ok-bg)'}"><svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 2l8 3v6c0 5-3.5 9.5-8 11-4.5-1.5-8-6-8-11V5l8-3z" fill="${bad ? '#d92d2d' : '#059669'}"/></svg></div>
+      <div><b>${bad ? 'Malicious agent report detected' : 'Latest claim verified'}</b><div style="color:var(--muted);font-size:11.5px">${focus.agent} · ${focus.type} · wave ${focus.wave} · ${clockAt(focus.t)}${focus.false_claim ? ' · <span style="color:var(--sec)">simulator oracle: false claim</span>' : ''}</div></div></div>
+    <div class="flow">
+      <div class="fs violet" style="transition-delay:0s"><label>1 · Agent claim</label><b>${focus.agent}</b><small>${esc(what)}</small></div>
+      <div class="fs ${focus.auth === 'AUTHENTICATED' ? 'good' : 'bad'}" style="transition-delay:.45s"><label>2 · Signature</label><b>${focus.auth === 'AUTHENTICATED' ? 'VALID' : 'INVALID'}</b><small>Ed25519 · registered key · fresh seq</small></div>
+      <div class="fs ${bad ? 'bad' : 'good'}" style="transition-delay:.9s"><label>3 · Witness</label><b>${esc(witness)}</b><small>independent sensor, own key</small></div>
+      <div class="fs ${bad ? 'bad' : 'good'}" style="transition-delay:1.35s"><label>4 · ACP result</label><b>${bad ? 'REJECTED' : 'CORROBORATED'}</b><small>${esc(focus.reasons.join(', ') || '—')}</small></div>
+      <div class="fs ${bad ? 'violet' : 'good'}" style="transition-delay:1.8s"><label>5 · Learning</label><b>${bad ? 'Claim not learned' : 'Eligible'}</b><small>${esc(learnTxt)}</small></div>
+    </div>
+    <div class="verdict ${bad ? 'bad' : 'ok'}" id="verdict">${bad ? `<b>SECURITY VIOLATION DETECTED</b> · a valid signature proved <i>who</i> sent it, not that it is true. Claim quarantined; ${admitted && w?.reward ? `reward recomputed from witness evidence: ${w.reward.value}${w.claimed_reward != null ? ` (claimed ${w.claimed_reward}, not used)` : ''}` : 'it will never reach the learner: only the ACP-recomputed reward can'}.` : 'Claim matches independent witness evidence.'}</div>
+    <div style="margin-top:8px;font-size:11.5px;color:var(--ink2)" id="secStats">${stats}</div>
+    <div class="claims" id="secList">${list}</div>`;
+  const steps = [...document.querySelectorAll('#sec .fs')];
+  requestAnimationFrame(() => { steps.forEach(s => s.classList.add('lit')); setTimeout(() => $('verdict')?.classList.add('show'), 2000); });
+  if (bad && playing) toast('sec', 'Security violation', `${focus.agent}: ${what} — rejected by ACP`);
+}
+
+let evFilter = 'key';
+const FILTERS = {key: 'Key', samg: 'SAMG', robots: 'Robots', alerts: 'Alerts', security: 'Security', all: 'All'};
+$('evChips').innerHTML = Object.entries(FILTERS).map(([k, v]) => `<span class="chip ${k === evFilter ? 'on' : ''}" data-f="${k}">${v}</span>`).join('');
+$('evChips').onclick = e => { const f = e.target.dataset.f; if (!f) return; evFilter = f; document.querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c.dataset.f === f)); evShown = -1; renderEvents(T); };
+const passes = e => evFilter === 'all' ? true : evFilter === 'key' ? e.level !== 'move' && !/ started /.test(e.title) && !/^Witness verified/.test(e.title)
+  : evFilter === 'samg' ? e.level === 'samg' : evFilter === 'robots' ? (e.level === 'move' || / started /.test(e.title) || e.robot) && e.level !== 'sec'
+  : evFilter === 'alerts' ? ['warn', 'bad'].includes(e.level) : e.level === 'sec' || /^ACP|^Secure|update/.test(e.title);
+let evShown = -1;
+function renderEvents(t) {
+  const vis = S.events.filter(e => e.t <= t);
+  if (vis.length === evShown) return; evShown = vis.length;
+  const f = vis.filter(passes);
+  $('evSub').textContent = `${vis.length} events · ${clockAt(t)}`;
+  $('events').innerHTML = f.slice(-80).reverse().map(e => `<div class="ev ${e.level}"><span class="t">${clockAt(e.t)}</span><i style="background:${LEVEL[e.level]}"></i><div><b>${esc(e.title)}</b>${e.detail ? ` <span>· ${esc(e.detail)}</span>` : ''}</div></div>`).join('')
+    || '<div class="empty">Press Start, or Auto demo for the guided judge walkthrough.</div>';
+}
+function renderFleet(t) {
+  $('fleet').innerHTML = S.robots.filter(r => r.physical).map(r => {
+    const s = robotAt(r.id, t), b = Math.max(0, s.battery);
+    return `<div class="rb"><span class="agent" style="background:${ROLE[r.role]}">${r.id}</span>
+      <div><span class="sb ${s.status}">${s.status}</span> <span class="mono" style="color:var(--muted);font-size:10.5px">${s.task || (r.station ? r.station : '')}</span></div>
+      <div><div class="batt"><i style="width:${b}%;background:${b < 20 ? 'var(--bad)' : b < 45 ? 'var(--warn)' : 'var(--ok)'}"></i></div><span class="mono" style="font-size:10px;color:var(--muted)">${b.toFixed(1)}%</span></div>
+      <span class="mono" style="font-size:11px;text-align:right">${Math.round(s.odo)} m</span></div>`;
+  }).join('');
+}
+
+// ---------------------------------------------------------------- map frame
+const layers = {routes: true, coord: true, labels: true};
+document.querySelectorAll('.tog').forEach(tg => tg.onclick = () => { const l = tg.dataset.l; layers[l] = !layers[l]; tg.classList.toggle('on', layers[l]);
+  gRoutes.style.display = layers.routes ? '' : 'none'; gCoord.style.display = layers.coord ? '' : 'none';
+  gLabels.style.display = layers.labels ? '' : 'none'; document.querySelectorAll('.rlabel').forEach(x => x.style.display = layers.labels ? '' : 'none'); });
+const STATUS_COLOR = {MOVING: '#2563eb', TRANSPORTING: '#0d9488', PICKING: '#c2700a', PACKING: '#7c3aed', WAITING: '#d97706', FAILED: '#d92d2d', IDLE: '#94a3b8', COMPLETED: '#059669'};
+function renderMap(t) {
+  const P = {};
+  for (const id in RB) {
+    const R = RB[id], s = robotAt(id, t); P[id] = s;
+    const ang = s.dx || s.dy ? Math.atan2(s.dy, s.dx) * 180 / Math.PI : (R.lastAng ?? 0); if (s.dx || s.dy) R.lastAng = ang;
+    R.g.setAttribute('transform', `translate(${s.x},${s.y})`);
+    R.body.setAttribute('transform', `rotate(${ang})`); R.nose.setAttribute('transform', `rotate(${ang})`);
+    R.st.textContent = s.status; R.st.setAttribute('fill', STATUS_COLOR[s.status] || '#64748b');
+    R.load.setAttribute('opacity', s.status === 'TRANSPORTING' ? 1 : 0);
+    R.fail.setAttribute('opacity', s.status === 'FAILED' ? 1 : 0);
+    R.body.setAttribute('fill', s.status === 'FAILED' ? '#d92d2d' : R.col);
+    R.halo.setAttribute('opacity', s.status === 'WAITING' ? 0.9 : s.status === 'PICKING' || s.status === 'PACKING' ? 0.5 : 0);
+    R.halo.setAttribute('stroke', s.status === 'WAITING' ? '#d97706' : R.col);
+    R.halo.setAttribute('r', 0.62 + (s.status === 'WAITING' ? 0.12 * Math.sin(performance.now() / 160) : 0));
+    R.tip.textContent = `${id} · ${R.r.role} · ${s.status}${s.task ? ' · ' + s.task : ''} · battery ${s.battery.toFixed(1)}%`;
+    // route: remainder of the current move + the next moves of the same task (as planned)
+    if (s.seg && s.seg.kind === 'move') {
+      const p = s.seg.path, n = p.length - 1, k = Math.min(Math.floor(s.f * n) + 1, n);
+      R.route.setAttribute('points', [[s.x, s.y], ...p.slice(k).map(c => [c[0] + 0.5, c[1] + 0.5])].map(q => q.join(',')).join(' '));
+      const fut = []; for (const q of R.segs.slice(s.idx + 1)) { if (q.task !== s.task) break; if (q.kind === 'move') fut.push(...q.path.map(c => [c[0] + 0.5, c[1] + 0.5])); }
+      R.future.setAttribute('points', fut.map(q => q.join(',')).join(' '));
+      const d = fut.length ? fut[fut.length - 1] : [p[n][0] + 0.5, p[n][1] + 0.5];
+      R.dest.setAttribute('cx', d[0]); R.dest.setAttribute('cy', d[1]); R.dest.setAttribute('opacity', 1);
+    } else { R.route.setAttribute('points', ''); R.future.setAttribute('points', ''); R.dest.setAttribute('opacity', 0); }
+  }
+  // congestion: robots waiting at an aisle entrance right now, and who holds the aisle
+  const waiting = {};
+  for (const c of S.congestion) if (c.t0 <= t && t < c.t1) (waiting[c.aisle] ??= []).push(c);
+  for (const id in CONG) {
+    const w = waiting[id], C = CONG[id];
+    C.r.setAttribute('opacity', w ? 0.95 : 0); C.badge.setAttribute('opacity', w ? 1 : 0);
+    if (w) C.bt.textContent = `${id} · ${w.length} waiting · +${Math.ceil(w.reduce((a, c) => a + (c.t1 - t), 0))}s`;
+  }
+  // coordination graph of the active wave, drawn between the robots' live positions
+  gCoord.innerHTML = '';
+  const wv = waveAt(t);
+  if (wv.graph) for (const [a, b] of wv.graph.links) {
+    const pa = a === WMS?.id ? WMS_POS : P[a] ? [P[a].x, P[a].y] : null, pb = b === WMS?.id ? WMS_POS : P[b] ? [P[b].x, P[b].y] : null;
+    if (!pa || !pb) continue;
+    const hubLink = wv.graph.coordinators[0] === a || wv.graph.coordinators[0] === b;
+    el('line', {x1: pa[0], y1: pa[1], x2: pb[0], y2: pb[1], stroke: hubLink ? '#0b1220' : '#6366f1', 'stroke-width': 0.04, opacity: 0.16, 'stroke-dasharray': hubLink ? '' : '0.2 0.12'}, gCoord);
+  }
+  // effects: witness ticks and rejected claims
+  gFx.innerHTML = '';
+  for (const e of S.events) {
+    if (e.t > t) break;
+    const age = t - e.t; if (age > 6) continue;
+    if (/^Witness verified/.test(e.title) && e.task) {
+      const a = assignmentAt(e.task, t); const s = a && P[a.agent]; if (!s) continue;
+      const o = 1 - age / 6; el('circle', {cx: s.x, cy: s.y, r: 0.7 + age * 0.18, fill: 'none', stroke: '#059669', 'stroke-width': 0.08, opacity: o}, gFx);
+      const tx = el('text', {x: s.x + 0.65, y: s.y - 0.5, 'font-size': 0.42, fill: '#059669', 'font-weight': 800, opacity: o}, gFx); tx.textContent = '✓';
+    }
+    if (e.level === 'sec' && e.robot && P[e.robot]) {
+      const s = P[e.robot], o = 1 - age / 6;
+      el('circle', {cx: s.x, cy: s.y, r: 0.8 + age * 0.35, fill: 'none', stroke: '#7c3aed', 'stroke-width': 0.12, opacity: o}, gFx);
+      const g = el('g', {opacity: o}, gFx); el('rect', {x: s.x - 2, y: s.y - 2.1, width: 4, height: 0.75, rx: 0.2, fill: '#7c3aed'}, g);
+      const tx = el('text', {x: s.x, y: s.y - 1.58, 'font-size': 0.36, 'text-anchor': 'middle', fill: '#fff', 'font-weight': 800}, g); tx.textContent = 'CLAIM REJECTED';
+    }
+    if (/ FAILED$/.test(e.title) && e.robot && P[e.robot]) {
+      const s = P[e.robot], o = 1 - age / 6; el('circle', {cx: s.x, cy: s.y, r: 0.8 + age * 0.4, fill: 'none', stroke: '#d92d2d', 'stroke-width': 0.12, opacity: o}, gFx);
+    }
+  }
+  const moving = Object.values(P).filter(s => ['MOVING', 'TRANSPORTING'].includes(s.status)).length;
+  $('mapSub').textContent = `${L.width} × ${L.height} m · ${Object.keys(RB).length} robots · ${moving} in motion · ${Object.keys(waiting).length ? Object.keys(waiting).join(', ') + ' congested' : 'aisles clear'}`;
+}
+
+// ---------------------------------------------------------------- stage strip
+function renderPipe(t) {
+  const vis = S.events.filter(e => e.t <= t);
+  const last = vis.filter(e => e.level !== 'move').slice(-1)[0];
+  const seen = new Set(vis.map(e => e.stage)); seen.add('wh');
+  const lastOf = {}; for (const e of vis) lastOf[e.stage] = e;
+  const activeStage = !last ? 'wh' : last.stage;
+  for (const [k] of STAGES) {
+    const n = $('st-' + k); n.classList.toggle('done', seen.has(k)); n.classList.toggle('active', k === activeStage);
+    $('sb-' + k).textContent = k === 'wh' ? `${L.width}×${L.height} m · ${Object.keys(RB).length} robots` : lastOf[k] ? lastOf[k].title : '—';
+  }
+}
+
+// ---------------------------------------------------------------- toasts
+const alertsBox = $('alerts');
+function toast(level, head, body) {
+  const d = document.createElement('div'); d.className = `toast ${level}`; d.innerHTML = `<b>${esc(head)}</b>${esc(body)}`;
+  alertsBox.appendChild(d); setTimeout(() => d.remove(), 4200); while (alertsBox.children.length > 3) alertsBox.firstChild.remove();
+}
+let lastToastT = 0;
+function fireToasts(t0, t1) {
+  for (const e of S.events) {
+    if (e.t <= t0 || e.t > t1) continue;
+    if (e.title.startsWith('Congestion')) toast('warn', 'Congestion alert', `${e.title.replace('Congestion at ', '')} · ${e.detail}`);
+    else if (/ FAILED$/.test(e.title)) toast('bad', 'Robot failure', `${e.title} · ${e.detail}`);
+    else if (e.title === 'Replanning') toast('bad', 'Replanning', e.detail);
+    else if (/^Order .* dispatched/.test(e.title)) toast('ok', 'Order dispatched', `${e.title.replace(' dispatched', '')} · ${e.detail}`);
+  }
+}
+
+// ---------------------------------------------------------------- loop & controls
+let T = 0, playing = false, speed = 1, last = performance.now(), demo = null;
+const BASE_RATE = END / 150;            // 1× plays the whole run in about 2.5 minutes
+function setT(t) { T = Math.max(0, Math.min(END, t)); }
+function renderAll() {
+  renderMap(T); renderKpis(T); renderMission(T); renderTopology(T); renderAlloc(T); renderSecurity(T); renderEvents(T); renderFleet(T); renderPipe(T);
+  $('clock').textContent = `${clockAt(T)} · t=${T.toFixed(0)}s`;
+  $('tlFill').style.width = `${T / END * 100}%`; head.style.left = `${T / END * 100}%`;
+  $('hSim').innerHTML = T >= END ? '<span style="color:var(--ok)">● COMPLETE</span>' : playing ? '<span class="pulse" style="color:var(--ok)">● RUNNING</span>' : '<span style="color:var(--warn)">❚❚ PAUSED</span>';
+  $('bPlay').innerHTML = playing ? '❚❚ Pause' : T >= END ? '↻ Replay' : T > 0 ? '▶ Resume' : '▶ Start';
+}
+let fleetTick = 0, allocTick = 0;
+function frame(now) {
+  const dt = Math.min((now - last) / 1000, 0.1); last = now;
+  if (playing && !demoHold()) {
+    const t0 = T; setT(T + dt * speed * BASE_RATE * (demo ? demo.rate : 1)); fireToasts(t0, T);
+    if (demo) demoStep(t0, T);
+    if (T >= END) { playing = false; if (demo) { showBanner(PHASES[PHASES.length - 1]); endDemo(); } }
+  }
+  renderMap(T); renderKpis(T); renderPipe(T); renderEvents(T); renderSecurity(T); renderTopology(T);
+  if (now - fleetTick > 250) { fleetTick = now; renderFleet(T); renderMission(T); }
+  if (now - allocTick > 400) { allocTick = now; renderAlloc(T); }
+  $('clock').textContent = `${clockAt(T)} · t=${T.toFixed(0)}s`;
+  $('tlFill').style.width = `${T / END * 100}%`; head.style.left = `${T / END * 100}%`;
+  $('hSim').innerHTML = T >= END ? '<span style="color:var(--ok)">● COMPLETE</span>' : playing ? '<span class="pulse" style="color:var(--ok)">● RUNNING</span>' : '<span style="color:var(--warn)">❚❚ PAUSED</span>';
+  $('bPlay').innerHTML = playing ? '❚❚ Pause' : T >= END ? '↻ Replay' : T > 0 ? '▶ Resume' : '▶ Start';
+  requestAnimationFrame(frame);
+}
+$('bPlay').onclick = () => { if (T >= END) setT(0); playing = !playing; };
+$('bStep').onclick = () => { playing = false; const t0 = T; setT(T + 5); fireToasts(t0, T); renderAll(); };
+$('bReset').onclick = () => { playing = false; stopDemo(); setT(0); secShown = null; topoWave = null; evShown = -1; renderAll(); };
+document.querySelectorAll('#speeds button').forEach(b => b.onclick = () => { speed = +b.dataset.s; document.querySelectorAll('#speeds button').forEach(x => x.classList.toggle('on', x === b)); });
+tl.onclick = e => { const r = tl.getBoundingClientRect(); setT((e.clientX - r.left) / r.width * END); renderAll(); };
+
+// ---------------------------------------------------------------- judge demo: phases are anchored to real events
+const first = (pred, after = -1) => S.events.find(e => e.t > after && pred(e));
+function buildPhases() {
+  const P = [];
+  const add = (e, k, h, p, panel) => { if (e) P.push({t: e.t, seq: e.seq, k, h, p, panel}); };
+  const w1 = S.waves[0];
+  add(S.events[0], 'Warehouse operation', `${S.orders.length} customer orders arrive`, S.orders.map(o => `${o.id} ${o.priority} · ${o.items.length} items · due ${o.deadline}`).join('  ·  '), 'orders');
+  add(first(e => /^Mission .* generated/.test(e.title)), 'SAMG mission generation', `Orders become ${w1.tasks.length} SAMG tasks`, 'Each order: PICK (per SKU, in parallel) → TRANSPORT → PACK → DISPATCH. Durations include A* travel estimates on this floor plan.', 'mission');
+  const sel = first(e => / selected /.test(e.title));
+  add(sel, 'Topology selection', `${w1.policy} selects ${(w1.topology || '').replace('_', ' ')}`, (sel?.detail || '') + '. Scores and the context vector are shown in the topology panel.', 'topo');
+  add(first(e => /allocation/.test(e.title)), 'Task allocation', `${w1.allocation?.solver || ''} assigns every task`, `Coordination paths of the chosen graph price every cross-robot handoff (h0 + h1·hops).`, 'alloc');
+  add(first(e => / started /.test(e.title)), 'Robots execute', 'Robots drive the routes SAMG\'s schedule implies', 'Dashed lines are the A* routes; robots hold a narrow aisle exclusively while inside.', 'map');
+  const cg = first(e => e.title.startsWith('Congestion'));
+  add(cg, 'Congestion', cg?.title || '', (cg?.detail || '') + '. The wait is measured and fed back into SAMG execution as a task delay.', 'map');
+  const fl = first(e => / FAILED$/.test(e.title) && e.robot);
+  add(fl, 'Controlled failure', fl?.title || '', (fl?.detail || '') + '. The witness records the failure; dependent tasks are blocked.', 'map');
+  const sc = first(e => e.level === 'sec');
+  add(sc, 'Malicious agent report', sc ? `${sc.robot} signs a false claim` : '', 'The signature is valid: the robot holds a real, registered key. The ACP checks the claim against independent witness evidence…', 'sec');
+  if (sc) P.push({t: sc.t, seq: sc.seq + 0.5, k: 'Assurance verdict', h: 'Claim rejected · reward update protected', p: 'Witness evidence contradicts the claim → DISPUTED and quarantined. The learner only ever receives the ACP-recomputed reward.', panel: 'sec', hold: 6.5});
+  const rp = first(e => e.title === 'Replanning');
+  add(rp, 'System response', 'SAMG replans what the witness did not verify', (rp?.detail || '') + '. A new topology decision and CP-SAT allocation follow.', 'alloc');
+  const rw = first(e => /^Secure reward/.test(e.title));
+  add(rw, 'Secure reward & learning', rw?.title || '', (rw?.detail || '') + '. The guarded update uses only ADMITTED, ACP-recomputed rewards.', 'topo');
+  P.push({t: END, seq: 1e9, k: 'Final metrics', h: 'Mission complete', p: CMP ? 'Final KPIs below; the topology comparison runs the same orders under every policy.' : 'Final KPIs are below. Run the topology comparison from the control panel for the fixed-baseline comparison.', panel: 'kpis', final: true});
+  P.sort((a, b) => a.t - b.t || a.seq - b.seq);
+  return P.map((p, i) => ({...p, n: i + 1}));
+}
+const PHASES = buildPhases();
+function showBanner(p) { $('bnK').textContent = `PHASE ${p.n} / ${PHASES.length} · ${p.k.toUpperCase()}`; $('bnH').textContent = p.h; $('bnP').textContent = p.p;
+  const b = $('banner'); b.classList.remove('show'); void b.offsetWidth; b.classList.add('show');
+  const target = {orders: 'orders', topo: 'tgraph', alloc: 'alloc', sec: 'secCard', kpis: 'kpis'}[p.panel];
+  if (target) { const n = $(target).closest('.card'); n.style.boxShadow = '0 0 0 2px var(--sec)'; setTimeout(() => n.style.boxShadow = '', 3800); } }
+function demoHold() { return demo && demo.holdUntil > performance.now(); }
+function demoStep(t0, t1) {
+  while (demo.i < PHASES.length && PHASES[demo.i].t <= t1) {
+    const p = PHASES[demo.i++]; setT(Math.max(p.t, t0)); showBanner(p); demo.holdUntil = performance.now() + (p.hold || 4.2) * 1000;
+    if (p.panel === 'sec') { secShown = null; }
+    if (p.final) { playing = false; endDemo(); }
+    break;
+  }
+}
+function startDemo() { setT(0); secShown = null; topoWave = null; evShown = -1; demo = {i: 0, holdUntil: 0, rate: 1}; speed = 1;
+  document.querySelectorAll('#speeds button').forEach(x => x.classList.toggle('on', x.dataset.s === '1')); $('bDemo').classList.add('on'); playing = true; }
+function endDemo() { $('bDemo').classList.remove('on'); demo = null; setTimeout(() => $('banner').classList.remove('show'), 9000); }
+function stopDemo() { demo = null; $('bDemo').classList.remove('on'); $('banner').classList.remove('show'); }
+$('bDemo').onclick = () => demo ? (stopDemo(), playing = false) : startDemo();
+
+// ---------------------------------------------------------------- comparison
+function renderCompare() {
+  if (!CMP) { $('cmp').innerHTML = '<div class="empty">Not run yet. Use <b>Run topology comparison</b> in the control panel above: the identical order book, layout, initial fleet and seeds under Hierarchical, Functional-cell, Distributed and Adaptive (LinUCB).</div>'; return; }
+  const M = {order_completion_rate: ['Completion', pct, 1], avg_fulfilment_s: ['Mean fulfilment', fmtS, -1], robot_utilization: ['Utilization', pct, 0],
+    congestion_s: ['Congestion', fmtS, -1], coordination_cost: ['Comm./coordination cost', v => v?.toFixed(1), -1], reward_first_wave: ['Reward (ACP)', v => v?.toFixed(3), 1],
+    security_violations: ['Security violations', v => v?.toFixed(1), 0], travel_m: ['Travel', v => `${Math.round(v)} m`, -1]};
+  const best = {};
+  for (const m of CMP.metrics) { const dir = M[m][2]; if (!dir) continue; const vals = CMP.policies.filter(p => p.infeasible < CMP.seeds.length).map(p => p.summary[m].mean).filter(v => v != null);
+    best[m] = dir > 0 ? Math.max(...vals) : Math.min(...vals); }
+  $('cmp').innerHTML = `<table><thead><tr><th>Policy</th><th>Topology chosen</th>${CMP.metrics.map(m => `<th>${M[m][0]}</th>`).join('')}</tr></thead><tbody>` +
+    CMP.policies.map(p => `<tr><td><b>${esc(p.label)}</b>${p.infeasible ? ` <span style="color:var(--warn)">(${p.infeasible} not eligible)</span>` : ''}</td>
+      <td class="mono" style="text-align:left">${Object.entries(p.topologies).map(([k, v]) => `${k.replace('_', ' ')}×${v}`).join(', ')}</td>` +
+      CMP.metrics.map(m => { const s = p.summary[m]; const isBest = s.mean != null && best[m] != null && Math.abs(s.mean - best[m]) < 1e-9;
+        return `<td class="mono ${isBest ? 'best' : ''}">${s.mean == null ? '—' : M[m][1](s.mean)}<span style="color:var(--faint)"> ±${s.std == null ? '—' : M[m][1](s.std)}</span></td>`; }).join('') + '</tr>').join('') +
+    `</tbody></table><div class="note">${esc(CMP.note)} n = ${CMP.seeds.length} seeds per policy. Green marks the best mean only; overlapping ± ranges mean no difference is claimed.</div>`;
+}
+
+const hashT = /t=([\d.]+)/.exec(location.hash);   // deep link: page.html#t=120 opens paused at t = 120 s
+if (hashT) setT(+hashT[1]);
+renderCompare(); renderAll(); requestAnimationFrame(frame);
+if (/demo/.test(location.hash)) startDemo();      // page.html#demo starts the guided judge demo
+</script>
+</body>
+</html>

@@ -1,0 +1,796 @@
+/* Control-center panel styles (Phase 2-C), ported from contract/reference/control_room_light.html.
+   Prefixed `zh-` so they never collide with Tailwind utilities. Tokens live in app/globals.css. */
+
+.zh-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.zh-ch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--line);
+  flex: none;
+  min-width: 0;
+}
+.zh-ch h2 {
+  margin: 0;
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.zh-ch .sub {
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.zh-ch .r {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex: none;
+}
+.zh-scroll {
+  overflow: auto;
+  min-height: 0;
+}
+.zh-empty {
+  padding: 14px 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* header chips */
+.zh-hs {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 3px 9px;
+  background: var(--panel2);
+  min-width: 86px;
+}
+.zh-hs label {
+  display: block;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.zh-hs b {
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.zh-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: 1px;
+}
+
+/* timeline */
+.zh-tl {
+  flex: 1;
+  position: relative;
+  height: 30px;
+  margin: 0 6px;
+  cursor: pointer;
+  min-width: 160px;
+  touch-action: none;
+}
+.zh-tl .track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 13px;
+  height: 4px;
+  border-radius: 3px;
+  background: #e8ecf2;
+}
+.zh-tl .fill {
+  position: absolute;
+  left: 0;
+  top: 13px;
+  height: 4px;
+  border-radius: 3px;
+  background: var(--ink);
+}
+.zh-tl .band {
+  position: absolute;
+  top: 3px;
+  height: 24px;
+  border-radius: 5px;
+  border: 1px dashed var(--line2);
+  font: 600 9px var(--font-mono);
+  color: var(--muted);
+  padding: 0 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  pointer-events: none;
+}
+.zh-tl .band.preview {
+  border-style: dotted;
+  border-color: #9bb8f5;
+  color: var(--accent);
+}
+.zh-tl .mk {
+  position: absolute;
+  top: 9px;
+  width: 3px;
+  height: 12px;
+  border-radius: 2px;
+  transform: translateX(-1px);
+}
+.zh-tl .head {
+  position: absolute;
+  top: 7px;
+  width: 12px;
+  height: 16px;
+  border-radius: 4px;
+  background: var(--ink);
+  transform: translateX(-6px);
+  box-shadow: 0 2px 6px rgba(11, 18, 32, 0.25);
+  pointer-events: none;
+}
+
+/* pipeline strip */
+.zh-st {
+  flex: 1;
+  position: relative;
+  padding: 4px 8px 4px 9px;
+  border-radius: 6px;
+  background: var(--panel2);
+  border: 1px solid transparent;
+  min-width: 0;
+  transition: background 0.3s, border-color 0.3s;
+}
+.zh-st label {
+  display: block;
+  font-size: 8.5px;
+  letter-spacing: 0.13em;
+  font-weight: 700;
+  color: var(--faint);
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.zh-st b {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.zh-st.done label {
+  color: var(--muted);
+}
+.zh-st.done b {
+  color: var(--ink2);
+}
+.zh-st.active {
+  background: var(--ink);
+  border-color: var(--ink);
+}
+.zh-st.active label {
+  color: #9fb0c9;
+}
+.zh-st.active b {
+  color: #fff;
+}
+.zh-st.alert.active {
+  background: var(--bad);
+  border-color: var(--bad);
+}
+.zh-st.sec.active {
+  background: var(--sec);
+  border-color: var(--sec);
+}
+
+/* KPIs */
+.zh-kpi {
+  padding: 6px 12px 7px;
+  border-right: 1px solid var(--line);
+  min-width: 0;
+}
+.zh-kpi:last-child {
+  border-right: 0;
+}
+.zh-kpi b {
+  display: block;
+  font: 700 17px var(--font-mono);
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.zh-kpi label {
+  display: block;
+  font-size: 9px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.zh-kpi small {
+  display: block;
+  color: var(--faint);
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* mission */
+.zh-counters {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  border-bottom: 1px solid var(--line);
+  flex: none;
+}
+.zh-counters div {
+  padding: 6px 9px;
+  border-right: 1px solid var(--line);
+  min-width: 0;
+}
+.zh-counters div:last-child {
+  border-right: 0;
+}
+.zh-counters b {
+  display: block;
+  font: 700 15px var(--font-mono);
+  white-space: nowrap;
+}
+.zh-counters label {
+  font-size: 8.5px;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.zh-order {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  background: #fff;
+}
+.zh-order:hover {
+  border-color: var(--line2);
+}
+.zh-order.sel {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.zh-order .row {
+  display: grid;
+  grid-template-columns: 58px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 9px;
+}
+.zh-pri {
+  font: 700 9px var(--font-sans);
+  letter-spacing: 0.1em;
+  padding: 1px 6px;
+  border-radius: 4px;
+  display: inline-block;
+  background: #eef1f5;
+  color: var(--ink2);
+}
+.zh-pri.CRITICAL {
+  background: var(--bad-bg);
+  color: var(--bad);
+}
+.zh-pri.HIGH {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+.zh-pri.NORMAL {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+.zh-steps {
+  display: flex;
+  gap: 3px;
+}
+.zh-steps i {
+  flex: 1;
+  height: 7px;
+  border-radius: 2px;
+  background: #e6eaf0;
+}
+.zh-steps i.EXECUTING {
+  background: #fbbf24;
+}
+.zh-steps i.REPORTED_COMPLETE {
+  background: #93c5fd;
+}
+.zh-steps i.VERIFIED_COMPLETE {
+  background: var(--ok);
+}
+.zh-steps i.FAILED {
+  background: var(--bad);
+}
+.zh-steps i.BLOCKED,
+.zh-steps i.REPLANNED {
+  background: repeating-linear-gradient(45deg, #f59e0b 0 3px, #fde68a 3px 6px);
+}
+.zh-steps i.ASSIGNED {
+  background: #cbd5e1;
+}
+.zh-steps i.sel {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.zh-ost {
+  font: 700 9.5px var(--font-sans);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-align: right;
+  white-space: nowrap;
+}
+.zh-ost small {
+  display: block;
+  font: 500 10px var(--font-mono);
+  color: var(--muted);
+  letter-spacing: 0;
+  text-transform: none;
+}
+.zh-lineage {
+  border-top: 1px dashed var(--line);
+  padding: 4px 9px 7px 9px;
+}
+.zh-lineage .ln {
+  display: grid;
+  grid-template-columns: 14px 1fr auto auto;
+  gap: 6px;
+  align-items: center;
+  font-size: 11px;
+  padding: 2px 3px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.zh-lineage .ln:hover {
+  background: var(--panel2);
+}
+.zh-lineage .ln.sel {
+  background: var(--accent-bg);
+}
+
+/* badges */
+.zh-sb {
+  font: 700 9.5px var(--font-sans);
+  letter-spacing: 0.06em;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #eef1f5;
+  color: var(--ink2);
+  white-space: nowrap;
+}
+.zh-sb.EXECUTING,
+.zh-sb.MOVING,
+.zh-sb.PICKING,
+.zh-sb.TRANSPORTING,
+.zh-sb.PACKING {
+  background: #fef3c7;
+  color: #92400e;
+}
+.zh-sb.VERIFIED,
+.zh-sb.COMPLETED,
+.zh-sb.CORROBORATED,
+.zh-sb.ok {
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+.zh-sb.REPORTED {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+.zh-sb.FAILED,
+.zh-sb.DISPUTED,
+.zh-sb.bad {
+  background: var(--bad-bg);
+  color: var(--bad);
+}
+.zh-sb.BLOCKED,
+.zh-sb.REPLANNED,
+.zh-sb.WAITING,
+.zh-sb.warn {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+.zh-sb.sec {
+  background: var(--sec-bg);
+  color: var(--sec);
+}
+.zh-sb.samg {
+  background: var(--samg);
+  color: #fff;
+}
+.zh-agent {
+  font: 700 10.5px var(--font-mono);
+  padding: 1px 6px;
+  border-radius: 4px;
+  color: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.zh-agent.sel {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* bars (topology arms, context) */
+.zh-bar {
+  height: 7px;
+  background: #eef1f5;
+  border-radius: 3px;
+  position: relative;
+  overflow: hidden;
+  margin-top: 3px;
+}
+.zh-bar .m {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: var(--accent);
+}
+.zh-bar .b {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(45deg, #a5b4fc 0 3px, #c7d2fe 3px 6px);
+}
+.zh-arm {
+  margin: 2px 0 7px;
+}
+.zh-arm .h {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.zh-arm .h span:last-child {
+  font: 600 11px var(--font-mono);
+  color: var(--ink2);
+}
+.zh-arm.sel .h span:first-child {
+  color: var(--accent);
+}
+.zh-arm.off {
+  opacity: 0.55;
+}
+.zh-arm small {
+  color: var(--muted);
+  font-size: 10.5px;
+}
+
+/* tables */
+.zh-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11.5px;
+}
+.zh-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--panel2);
+  text-align: left;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--line);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.zh-table td {
+  padding: 4px 10px;
+  border-bottom: 1px solid #eef1f5;
+  white-space: nowrap;
+}
+.zh-table tbody tr {
+  cursor: pointer;
+}
+.zh-table tbody tr:hover td {
+  background: var(--panel2);
+}
+.zh-table tr.re td {
+  background: #fff8e6;
+}
+.zh-table tr.re td:first-child {
+  box-shadow: inset 3px 0 0 var(--warn);
+}
+.zh-table tr.sel td {
+  background: var(--accent-bg);
+}
+.zh-table tr.sel td:first-child {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.zh-table tr.rel td {
+  background: #f4f8ff;
+}
+
+/* security flow */
+.zh-flow {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+.zh-fs {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: var(--panel2);
+  opacity: 0.3;
+  transition: opacity 0.35s;
+  min-width: 0;
+}
+.zh-fs.lit {
+  opacity: 1;
+}
+.zh-fs label {
+  display: block;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.zh-fs b {
+  display: block;
+  font-size: 12px;
+  margin-top: 1px;
+}
+.zh-fs small {
+  display: block;
+  font-size: 10px;
+  color: var(--muted);
+  line-height: 1.3;
+  margin-top: 2px;
+}
+.zh-fs.good {
+  border-color: #a7e3cd;
+  background: var(--ok-bg);
+}
+.zh-fs.good b {
+  color: var(--ok);
+}
+.zh-fs.bad {
+  border-color: #f4b4b4;
+  background: var(--bad-bg);
+}
+.zh-fs.bad b {
+  color: var(--bad);
+}
+.zh-fs.violet {
+  border-color: #d4c4fb;
+  background: var(--sec-bg);
+}
+.zh-fs.violet b {
+  color: var(--sec);
+}
+@keyframes zh-lit {
+  from {
+    opacity: 0.3;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.zh-fs.anim {
+  opacity: 1;
+  animation: zh-lit 0.4s ease both;
+}
+
+/* events */
+.zh-ev {
+  display: grid;
+  grid-template-columns: 62px 12px 1fr;
+  gap: 6px;
+  padding: 4px 12px;
+  border-bottom: 1px solid #f0f2f6;
+  font-size: 12px;
+  cursor: pointer;
+}
+.zh-ev:hover {
+  background: var(--panel2);
+}
+.zh-ev .t {
+  font: 500 11px var(--font-mono);
+  color: var(--muted);
+}
+.zh-ev i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-top: 5px;
+}
+.zh-ev b {
+  font-weight: 600;
+}
+.zh-ev span.d {
+  color: var(--muted);
+}
+.zh-ev.sec {
+  background: #faf7ff;
+}
+.zh-ev.bad {
+  background: #fffafa;
+}
+.zh-ev.sel {
+  background: var(--accent-bg);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.zh-chip {
+  font: 600 10.5px var(--font-sans);
+  border: 1px solid var(--line2);
+  border-radius: 999px;
+  padding: 1px 9px;
+  cursor: pointer;
+  color: var(--muted);
+  background: #fff;
+}
+.zh-chip.on {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+}
+
+/* fleet */
+.zh-rb {
+  display: grid;
+  grid-template-columns: 44px 70px minmax(0, 1fr) 110px 60px;
+  gap: 10px;
+  align-items: center;
+  padding: 4px 12px;
+  border-bottom: 1px solid #f0f2f6;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.zh-rb:hover {
+  background: var(--panel2);
+}
+.zh-rb.sel {
+  background: var(--accent-bg);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.zh-batt {
+  height: 6px;
+  border-radius: 3px;
+  background: #eef1f5;
+  overflow: hidden;
+}
+.zh-batt i {
+  display: block;
+  height: 100%;
+}
+
+/* tabs */
+.zh-tab {
+  border: 0;
+  background: none;
+  padding: 7px 12px 6px;
+  font: 800 10.5px var(--font-sans);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.zh-tab:hover {
+  color: var(--ink2);
+}
+.zh-tab.on {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
+.zh-tab .n {
+  font: 700 9.5px var(--font-mono);
+  letter-spacing: 0;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #eef1f5;
+  color: var(--ink2);
+}
+.zh-tab .n.sec {
+  background: var(--sec);
+  color: #fff;
+}
+.zh-tab .n.bad {
+  background: var(--bad);
+  color: #fff;
+}
+
+/* toasts */
+@keyframes zh-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+.zh-toast {
+  background: #fff;
+  border: 1px solid var(--line2);
+  border-left: 4px solid var(--warn);
+  border-radius: 7px;
+  padding: 6px 11px;
+  font-size: 12px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  max-width: 340px;
+  animation: zh-drop 0.3s ease;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.zh-toast b {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--warn);
+}
+.zh-toast.bad {
+  border-left-color: var(--bad);
+}
+.zh-toast.bad b {
+  color: var(--bad);
+}
+.zh-toast.sec {
+  border-left-color: var(--sec);
+}
+.zh-toast.sec b {
+  color: var(--sec);
+}
+.zh-toast.ok {
+  border-left-color: var(--ok);
+}
+.zh-toast.ok b {
+  color: var(--ok);
+}
+.zh-toast.samg {
+  border-left-color: var(--samg);
+}
+.zh-toast.samg b {
+  color: var(--samg);
+}
+.zh-verdict {
+  margin-top: 7px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  animation: zh-drop 0.35s ease both;
+}
+.zh-verdict.bad {
+  background: var(--bad);
+  color: #fff;
+}
+.zh-verdict.ok {
+  background: var(--ok-bg);
+  color: var(--ok);
+}

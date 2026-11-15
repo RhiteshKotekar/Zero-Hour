@@ -21,10 +21,12 @@ def _app() -> AppTest:
     return at
 
 
-def test_app_renders_three_tabs() -> None:
+def test_app_renders_tabs() -> None:
     at = _app()
-    assert len(at.tabs) == 3
-    assert any("Mission Control" in h.value for h in at.header)
+    assert len(at.tabs) == 4
+    tab_labels = [t.label for t in at.tabs]
+    assert "Warehouse Digital Twin" in tab_labels
+    assert "Mission Control" in tab_labels
 
 
 def test_mission_run_shows_ids() -> None:

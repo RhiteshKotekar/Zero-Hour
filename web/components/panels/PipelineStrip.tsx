@@ -25,7 +25,7 @@ export function PipelineStrip({ className }: PipelineStripProps) {
   });
   const robots = state ? state.robots.filter((r) => r.physical).length : 0;
   return (
-    <div className={`flex gap-1 overflow-hidden rounded-[10px] border border-line bg-panel px-2 py-1.5 ${className ?? ""}`}>
+    <div className={`flex gap-1.5 overflow-x-auto no-scrollbar rounded-2xl border border-line bg-panel p-2 shadow-sm ${className ?? ""}`}>
       {STAGES.map(([k, label, cls]) => (
         <div key={k} className={`zh-st ${cls} ${seen.has(k) ? "done" : ""} ${k === active ? "active" : ""}`} title={lastOf[k]?.detail ?? ""}>
           <label>{label}</label>

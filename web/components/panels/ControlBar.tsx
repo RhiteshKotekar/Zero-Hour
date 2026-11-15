@@ -47,9 +47,9 @@ export function ControlBar({ className }: ControlBarProps) {
   const onSpeed = (v: number) => (live ? liveControl("speed", v) : s().setSpeed(v));
 
   return (
-    <div className={`flex items-center gap-2 rounded-[10px] border border-line bg-panel px-3 py-1.5 ${className ?? ""}`}>
+    <div className={`flex items-center gap-2 rounded-2xl border border-line bg-panel px-3.5 py-2 shadow-sm ${className ?? ""}`}>
       <SessionDrawer />
-      <button className="btn primary w-[92px] justify-center" onClick={onPlay} disabled={!state}>
+      <button className="btn primary w-[96px] justify-center" onClick={onPlay} disabled={!state}>
         {playing ? "❚❚ Pause" : atEnd ? "↻ Replay" : t > 0 ? "▶ Resume" : "▶ Start"}
       </button>
       <button className="btn" onClick={onStep} disabled={!state} title="advance 5 simulated seconds">
@@ -66,8 +66,8 @@ export function ControlBar({ className }: ControlBarProps) {
         ))}
       </div>
       <Timeline end={end} t={t} seekable={!live} />
-      <span className="mono min-w-[150px] text-right text-[12.5px] font-semibold">
-        {state ? clockAt(state, t) : "--:--:--"} <span className="text-muted">· t={t.toFixed(0)}s</span>
+      <span className="mono min-w-[150px] text-right text-[12.5px] font-semibold text-ink">
+        {state ? clockAt(state, t) : "--:--:--"} <span className="text-muted font-normal">· t={t.toFixed(0)}s</span>
       </span>
       <InjectMenu />
       <div className="seg">

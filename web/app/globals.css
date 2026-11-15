@@ -3,15 +3,15 @@
 /* Light industrial control-room tokens (ported from contract/reference/control_room_light.html, plan §6.2).
    The control center is light-only by requirement. */
 :root {
-  --bg: #eef1f5;
+  --bg: #f3f6fa;
   --panel: #ffffff;
   --panel2: #f8fafc;
-  --line: #e2e7ef;
-  --line2: #cfd6e2;
-  --ink: #0b1220;
-  --ink2: #3d4a5f;
-  --muted: #7b8699;
-  --faint: #a9b2c1;
+  --line: #e2e8f0;
+  --line2: #cbd5e1;
+  --ink: #0f172a;
+  --ink2: #334155;
+  --muted: #64748b;
+  --faint: #94a3b8;
   --accent: #2563eb;
   --accent-bg: #eaf1ff;
   --ok: #059669;
@@ -75,34 +75,47 @@ body {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
-/* small caps labels */
+/* Material 3 small caps labels */
 .cap {
-  font-size: 9.5px;
-  letter-spacing: 0.14em;
+  font-size: 10px;
+  letter-spacing: 0.1em;
   font-weight: 700;
   text-transform: uppercase;
   color: var(--muted);
 }
 .btn {
   border: 1px solid var(--line2);
-  background: #fff;
+  background: #ffffff;
   color: var(--ink);
-  border-radius: 7px;
-  padding: 5px 10px;
+  border-radius: 9999px;
+  padding: 5px 12px;
   font: 600 12px var(--font-sans);
   cursor: pointer;
   display: inline-flex;
   gap: 6px;
   align-items: center;
   white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition: all 0.15s cubic-bezier(0.2, 0, 0, 1);
 }
 .btn:hover {
   background: var(--panel2);
+  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.08);
+  transform: translateY(-0.5px);
+}
+.btn:active {
+  transform: translateY(0);
 }
 .btn.primary {
   background: var(--ink);
-  color: #fff;
+  color: #ffffff;
   border-color: var(--ink);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.2);
+}
+.btn.primary:hover {
+  background: #1e293b;
+  border-color: #1e293b;
+  box-shadow: 0 3px 6px rgba(15, 23, 42, 0.25);
 }
 .btn.on {
   background: var(--accent-bg);
@@ -111,25 +124,26 @@ body {
 }
 .seg {
   display: inline-flex;
-  border: 1px solid var(--line2);
-  border-radius: 7px;
-  overflow: hidden;
+  border: 1px solid var(--line);
+  background: #f1f5f9;
+  border-radius: 9999px;
+  padding: 2px;
+  gap: 2px;
 }
 .seg button {
   border: 0;
-  border-right: 1px solid var(--line);
-  background: #fff;
-  padding: 5px 9px;
+  background: transparent;
+  padding: 4px 10px;
   font: 600 11.5px var(--font-mono);
   cursor: pointer;
   color: var(--ink2);
-}
-.seg button:last-child {
-  border-right: 0;
+  border-radius: 9999px;
+  transition: all 0.15s cubic-bezier(0.2, 0, 0, 1);
 }
 .seg button.on {
-  background: var(--ink);
-  color: #fff;
+  background: #ffffff;
+  color: var(--ink);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
 }
 @keyframes pulse {
   50% {

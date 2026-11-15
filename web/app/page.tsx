@@ -6,6 +6,7 @@
 import { useEffect, useState } from "react";
 import { useClockDriver, useStore } from "@/lib/store";
 import { useLiveConnection } from "@/lib/live";
+import { useDashboardPopoutTracker } from "@/lib/popoutSync";
 import { Header } from "@/components/panels/Header";
 import { ControlBar } from "@/components/panels/ControlBar";
 import { PipelineStrip } from "@/components/panels/PipelineStrip";
@@ -17,6 +18,7 @@ import { BottomTabs } from "@/components/shell/BottomTabs";
 
 export default function Home() {
   useClockDriver(10);
+  useDashboardPopoutTracker();
   const mode = useStore((s) => s.mode);
   // read once on the client (does not affect markup, so no hydration mismatch)
   const [liveParam] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("live") === "1");
@@ -38,19 +40,19 @@ export default function Home() {
   }, []);
 
   return (
-    <main className="flex h-screen min-h-[860px] flex-col gap-2 p-2.5">
+    <main className="flex h-screen min-h-[860px] flex-col gap-2.5 p-3">
       <Header />
       <ControlBar />
       <PipelineStrip />
-      <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,68fr)_minmax(390px,32fr)] gap-2">
+      <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,68fr)_minmax(390px,32fr)] gap-2.5">
         <Stage />
-        <div className="flex min-h-0 min-w-0 flex-col gap-2">
+        <div className="flex min-h-0 min-w-0 flex-col gap-2.5">
           <MissionPanel className="min-h-[150px] flex-[1]" />
           <TopologyPanel className="min-h-[200px] flex-[1.35]" />
         </div>
       </div>
       <KpiStrip />
-      <BottomTabs className="h-[212px] flex-none" />
+      <BottomTabs className="h-[216px] flex-none" />
     </main>
   );
 }

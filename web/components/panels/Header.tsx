@@ -21,21 +21,21 @@ export function Header({ className }: HeaderProps) {
   const scenario = state ? (state.spec.scenario === "judge_demo" ? "Judge demo" : state.spec.label ?? state.spec.scenario) : "—";
 
   return (
-    <header className={`flex items-center gap-4 rounded-[10px] border border-line bg-panel px-4 py-1.5 ${className ?? ""}`}>
+    <header className={`flex items-center gap-4 rounded-2xl border border-line bg-panel px-4 py-2 shadow-sm ${className ?? ""}`}>
       <div className="flex flex-none items-center gap-3">
-        <div className="grid h-[30px] w-[30px] place-items-center rounded-[7px] bg-ink">
+        <div className="grid h-8 w-8 place-items-center rounded-xl bg-ink shadow-sm">
           <svg width="18" height="18" viewBox="0 0 18 18">
             <path d="M3 4h12L3 14h12" stroke="#fff" strokeWidth="2.2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </div>
         <div>
-          <h1 className="text-[14.5px] font-extrabold leading-tight tracking-[0.14em]">ZERO-HOUR</h1>
-          <div className="text-[9.5px] font-semibold tracking-[0.2em] text-muted">SECURE ADAPTIVE MISSION CONTROL · SAMG</div>
+          <h1 className="text-[14px] font-black leading-tight tracking-[0.12em] text-ink">ZERO-HOUR</h1>
+          <div className="text-[9.5px] font-bold tracking-[0.16em] text-muted">SECURE ADAPTIVE MISSION CONTROL · SAMG</div>
         </div>
       </div>
 
       <span
-        className={`flex flex-none items-center rounded-[7px] border px-2.5 py-1 text-[11px] font-bold ${
+        className={`flex flex-none items-center rounded-full border px-3 py-1 text-[11px] font-bold shadow-xs ${
           mode === "live" ? "border-[#a7e3cd] bg-ok-bg text-ok" : "border-line bg-panel2 text-ink"
         }`}
         title={source}
@@ -45,11 +45,11 @@ export function Header({ className }: HeaderProps) {
         <span className="ml-1.5 font-semibold text-muted">· {mode === "live" ? `session ${state?.live?.session_id?.slice(0, 8) ?? "—"}` : source.replace(/^REPLAY · /, "") || "recorded SAMG run"}</span>
       </span>
 
-      <nav className="flex flex-none items-center gap-1 text-[11.5px] font-semibold">
-        <Link className="rounded-md px-2 py-1 text-ink2 hover:bg-panel2" href="/compare">
+      <nav className="flex flex-none items-center gap-1.5 text-[11.5px] font-semibold">
+        <Link className="rounded-full px-3 py-1 text-ink2 hover:bg-panel2 transition-colors" href="/compare">
           Compare
         </Link>
-        <Link className="rounded-md px-2 py-1 text-ink2 hover:bg-panel2" href="/replays">
+        <Link className="rounded-full px-3 py-1 text-ink2 hover:bg-panel2 transition-colors" href="/replays">
           Replays
         </Link>
       </nav>

@@ -25,7 +25,7 @@ export function KpiStrip({ className }: KpiStripProps) {
       ]
     : [];
   return (
-    <div className={`grid grid-cols-10 rounded-[10px] border border-line bg-panel ${className ?? ""}`}>
+    <div className={`grid grid-cols-10 rounded-2xl border border-line bg-panel shadow-sm overflow-hidden ${className ?? ""}`}>
       {items.map(([label, value, sub, color, small]) => (
         <div key={label} className="zh-kpi">
           <b style={{ color, fontSize: small ? 14 : undefined, lineHeight: small ? "25px" : undefined }}>{value}</b>

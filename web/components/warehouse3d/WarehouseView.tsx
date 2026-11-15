@@ -8,14 +8,17 @@ import { WarehouseScene } from "./Scene";
 import { InfoCard } from "./InfoCard";
 import { isoView } from "./CameraRig";
 import { labelPortal } from "./labelPortal";
+import { openPopoutWindow } from "@/lib/popoutSync";
 
 export interface WarehouseViewProps {
   className?: string;
   /** hide the built-in overlay (camera buttons, toggles, legend, card) */
   bare?: boolean;
+  /** hide the popout button (e.g. when already inside the popout window) */
+  hidePopout?: boolean;
 }
 
-export function WarehouseView({ className, bare }: WarehouseViewProps) {
+export function WarehouseView({ className, bare, hidePopout }: WarehouseViewProps) {
   const state = useStore((s) => s.state);
   const select = useStore((s) => s.select);
   const labels = useStore((s) => s.toggles.labels);
@@ -39,7 +42,7 @@ export function WarehouseView({ className, bare }: WarehouseViewProps) {
         <WarehouseScene state={state} />
       </Canvas>
       <div ref={labelPortal} className="pointer-events-none absolute inset-0 z-0 overflow-hidden" />
-      {!bare && <Overlay />}
+      {!bare && <Overlay hidePopout={hidePopout} />}
     </div>
   );
 }
@@ -58,7 +61,7 @@ const TOGGLES: [keyof Toggles, string][] = [
   ["congestion", "Congestion"],
 ];
 
-function Overlay() {
+function Overlay({ hidePopout }: { hidePopout?: boolean }) {
   const state = useStore((s) => s.state)!;
   const cameraCommand = useStore((s) => s.cameraCommand);
   const follow = useStore((s) => s.follow);
@@ -71,7 +74,7 @@ function Overlay() {
   return (
     <div className="pointer-events-none absolute inset-0 z-10 p-2.5">
       <div className="flex items-start justify-between gap-2">
-        <div className="pointer-events-auto flex flex-wrap items-center gap-1.5 rounded-[9px] border border-line bg-panel/90 p-1 shadow-sm backdrop-blur">
+        <div className="pointer-events-auto flex flex-wrap items-center gap-1.5 rounded-full border border-line bg-panel/90 p-1 shadow-sm backdrop-blur-md">
           <div className="seg">
             {CAM.map(([k, l]) => (
               <button key={k} className={k === "follow" && follow ? "on" : ""} onClick={() => cameraCommand(k)}>
@@ -79,7 +82,7 @@ function Overlay() {
               </button>
             ))}
           </div>
-          <span className="cap px-1">Focus</span>
+          <span className="cap px-1.5">Focus</span>
           <button className="btn" disabled={!selection} style={{ opacity: selection ? 1 : 0.45 }} onClick={() => cameraCommand("focusSelection")}>
             Selection
           </button>
@@ -90,18 +93,34 @@ function Overlay() {
             Failure
           </button>
         </div>
-        <div className="pointer-events-auto flex flex-wrap justify-end gap-1 rounded-[9px] border border-line bg-panel/90 p-1 shadow-sm backdrop-blur">
-          {TOGGLES.map(([k, l]) => (
-            <button key={k} className={`btn ${toggles[k] ? "on" : ""}`} onClick={() => toggle(k)}>
-              {l}
+        <div className="flex items-center gap-2">
+          <div className="pointer-events-auto flex flex-wrap justify-end gap-1 rounded-full border border-line bg-panel/90 p-1 shadow-sm backdrop-blur-md">
+            {TOGGLES.map(([k, l]) => (
+              <button key={k} className={`btn ${toggles[k] ? "on" : ""}`} onClick={() => toggle(k)}>
+                {l}
+              </button>
+            ))}
+          </div>
+          {!hidePopout && (
+            <button
+              className="pointer-events-auto btn primary flex items-center gap-1.5 rounded-full py-1.5 px-3.5 text-[11.5px] font-semibold shadow-sm hover:brightness-110 active:scale-95 transition-all"
+              title="Pop out 3D simulation to a separate tab"
+              onClick={() => openPopoutWindow()}
+            >
+              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                <polyline points="15 3 21 3 21 9" />
+                <line x1="10" y1="14" x2="21" y2="3" />
+              </svg>
+              <span>Pop Out</span>
             </button>
-          ))}
+          )}
         </div>
       </div>
       <div className="absolute right-2.5 top-14">
         <InfoCard state={state} />
       </div>
-      <div className="pointer-events-auto absolute bottom-2.5 right-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-[9px] border border-line bg-panel/90 px-2.5 py-1.5 text-[11px] shadow-sm backdrop-blur">
+      <div className="pointer-events-auto absolute bottom-2.5 right-2.5 flex flex-wrap items-center gap-x-3.5 gap-y-1 rounded-full border border-line bg-panel/90 px-3.5 py-1.5 text-[11px] shadow-sm backdrop-blur-md">
         {(["picking", "transport", "packing", "dispatch"] as const).map((r) => (
           <span key={r} className="flex items-center gap-1.5">
             <i className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: ROLE_COLOR[r] }} />

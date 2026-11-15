@@ -39,14 +39,14 @@ export function BottomTabs({ className }: { className?: string }) {
   ];
   return (
     <section className={`zh-card ${className ?? ""}`}>
-      <div className="flex flex-none items-center border-b border-line px-1">
+      <div className="flex flex-none items-center border-b border-line px-3 py-1 bg-panel2/70 gap-1.5 overflow-x-auto no-scrollbar">
         {tabs.map(([k, label, badge]) => (
           <button key={k} className={`zh-tab ${tab === k ? "on" : ""}`} onClick={() => setTab(k)}>
             {label}
             {badge}
           </button>
         ))}
-        <span className="ml-auto pr-3 text-[11px] text-muted">
+        <span className="ml-auto pr-2 text-[11px] font-medium text-muted">
           {tab === "sec" ? "signed claim → signature → witness → ACP → learning" : tab === "fleet" ? "status · task · battery · odometer" : ""}
         </span>
       </div>

@@ -108,27 +108,29 @@ export function TopologyPanel({ className }: TopologyPanelProps) {
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-x-3.5 gap-y-1 border-t border-line px-3 pb-2 pt-1.5">
+      <div className="grid grid-cols-2 gap-2 border-t border-line px-3.5 pb-2.5 pt-2 bg-panel2/40">
         {w.context
           .filter((c) => c.name !== "intercept")
           .map((c) => (
-            <div key={c.name} className="grid grid-cols-[1fr_34px] items-center gap-x-1.5 text-[11px] text-ink2">
-              <span className="truncate" title={c.name}>
-                {CTX_NAMES[c.name] ?? c.name}
-              </span>
-              <span className="mono text-right">{c.value.toFixed(2)}</span>
-              <div className="zh-bar col-span-2 !mt-0 !h-1">
+            <div key={c.name} className="flex flex-col gap-1 p-2 rounded-xl bg-white border border-line shadow-xs">
+              <div className="flex justify-between items-center text-[10.5px]">
+                <span className="truncate font-medium text-ink2" title={c.name}>
+                  {CTX_NAMES[c.name] ?? c.name}
+                </span>
+                <span className="mono font-bold text-ink">{c.value.toFixed(2)}</span>
+              </div>
+              <div className="zh-bar !mt-0 !h-1.5">
                 <div className="m" style={{ width: `${Math.min(1, Math.max(0, c.value)) * 100}%`, background: "var(--samg)" }} />
               </div>
             </div>
           ))}
-        <div className="col-span-2 text-[10.5px] text-muted">
+        <div className="col-span-2 text-[10px] text-muted">
           Context vector ctx-v1 passed to the policy. The policy exposes scores, not reasons; no explanation is generated.
         </div>
       </div>
 
-      <div className="border-t border-line px-3 py-1.5">
-        <div className="cap mb-1">Wave history</div>
+      <div className="border-t border-line px-3.5 py-2">
+        <div className="cap mb-1.5">Wave history</div>
         {state.waves
           .filter((x) => x.t0 <= t)
           .map((x) => (
@@ -144,7 +146,7 @@ function WaveRow({ x, t, active, onClick }: { x: Wave; t: number; active: boolea
   const s = x.arms.find((a) => a.selected);
   return (
     <div
-      className={`mb-1 cursor-pointer rounded-md border px-2 py-1 text-[11px] ${active ? "border-accent bg-accent-bg" : "border-line hover:bg-panel2"}`}
+      className={`mb-1.5 cursor-pointer rounded-xl border p-2 text-[11px] transition-all shadow-xs ${active ? "border-accent bg-accent-bg/80" : "border-line bg-white hover:bg-panel2"}`}
       onClick={onClick}
     >
       <div className="flex items-center gap-2">

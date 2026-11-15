@@ -68,6 +68,7 @@ export interface StoreState {
   follow: string | null;
   camera: CameraCommand | null;
   toasts: Toast[];
+  isPopoutActive: boolean;
 
   // ---- derived clock
   localT: () => number;
@@ -101,6 +102,7 @@ export interface StoreState {
   cameraCommand: (kind: CameraCommandKind) => void;
   pushToast: (level: Toast["level"], text: string) => void;
   dismissToast: (id: number) => void;
+  setPopoutActive: (active: boolean) => void;
 }
 
 const now = () => (typeof performance !== "undefined" ? performance.now() : 0);
@@ -118,6 +120,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   follow: null,
   camera: null,
   toasts: [],
+  isPopoutActive: false,
 
   localT: () => {
     const { clock, mode, state } = get();
@@ -208,6 +211,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   pushToast: (level, text) =>
     set((s) => ({ toasts: [...s.toasts.slice(-5), { id: (s.toasts.at(-1)?.id ?? 0) + 1, level, text, at: Date.now() }] })),
   dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((x) => x.id !== id) })),
+  setPopoutActive: (isPopoutActive) => set({ isPopoutActive }),
 }));
 
 /** Mount once (page shell): commits the extrapolated clock into `clock.t` at `hz` and stops replays at the end. */

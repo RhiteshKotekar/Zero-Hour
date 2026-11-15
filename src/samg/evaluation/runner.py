@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from samg.context import extract_features
 from samg.domain import (
@@ -40,7 +40,7 @@ from samg.domain import (
     config_hash,
 )
 from samg.domain.config import load_config
-from samg.evaluation.metrics import PairedComparison, Summary, oracle_regret, paired_comparison, summarize
+from samg.evaluation.metrics import PairedComparison, Summary, paired_comparison, summarize
 from samg.allocation import feasible_topologies
 from samg.learning import best_fixed_from_training, make_policy
 from samg.learning.base import PolicyDecision, TopologyPolicy
@@ -68,8 +68,32 @@ class ExperimentConfig(SamgModel):
     frozen: bool = False
 
 
+class EpsilonGreedyExperimentConfig(SamgModel):
+    """Versioned P4 settings, kept separate from the frozen P0-P3 experiment."""
+
+    version: str = "epsilon-greedy-exp-v1"
+    epsilon: float = Field(default=0.2, ge=0, le=1)
+    epsilon_grid: tuple[float, ...] = (0.05, 0.1, 0.2, 0.3, 0.5)
+    lam: float = Field(default=1.0, gt=0)
+    warmup_per_arm: int = Field(default=2, ge=0)
+    policy_seeds: tuple[int, ...] = (101, 211, 307, 401, 503)
+    frozen: bool = False
+
+    @model_validator(mode="after")
+    def _epsilon_config_valid(self) -> EpsilonGreedyExperimentConfig:
+        if not self.epsilon_grid or any(not 0 <= e <= 1 for e in self.epsilon_grid):
+            raise ValueError("epsilon_grid must contain values in [0, 1]")
+        if not self.policy_seeds or len(set(self.policy_seeds)) != len(self.policy_seeds):
+            raise ValueError("policy_seeds must be non-empty and unique")
+        return self
+
+
 def load_experiment(config_dir: Path | None = None) -> ExperimentConfig:
     return load_config(ExperimentConfig, "experiment.yaml", config_dir)
+
+
+def load_epsilon_greedy_experiment(config_dir: Path | None = None) -> EpsilonGreedyExperimentConfig:
+    return load_config(EpsilonGreedyExperimentConfig, "epsilon_greedy.yaml", config_dir)
 
 
 class MissionResult(BaseModel):
@@ -94,6 +118,7 @@ class RunRecord(BaseModel):
 
     split: str
     policy: str
+    policy_seed: int | None = None
     step: int
     scenario_id: str
     mission_id: str
@@ -108,6 +133,8 @@ class RunRecord(BaseModel):
     episode_status: EpisodeStatus | None
     learned: bool
     warmup: bool
+    explored: bool = False
+    exploration_probability: float | None = None
     scores: dict[TopologyName, float]
     metrics: dict[str, float]
 
@@ -125,12 +152,16 @@ class PolicyResult(BaseModel):
     reward_by_family: dict[str, Summary]
     metric_means: dict[str, float] = Field(default_factory=dict,
                                            description="Mean of each executor metric over feasible runs.")
+    exploration_count: int = 0
+    exploration_rate: float | None = None
+    policy_seed_count: int = 1
 
 
 class ExperimentResult(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     config: ExperimentConfig
+    epsilon_greedy: EpsilonGreedyExperimentConfig | None = None
     config_hash: str
     p1_topology: TopologyName
     training_rewards: dict[str, list[float | None]]
@@ -143,10 +174,17 @@ class ExperimentResult(BaseModel):
     def table(self) -> list[dict[str, Any]]:
         """Rows for the brief §12.11 results table (measured values only)."""
         rows = []
-        for policy in PERFORMANCE_POLICIES:
+        for policy in self.test:
             r = self.test[policy]
+            label = policy
+            if policy == "P1":
+                label = f"P1 (best fixed = {self.p1_topology.value})"
+            elif policy == "P4" and self.epsilon_greedy is not None:
+                label = f"P4 Contextual epsilon-greedy (epsilon={self.epsilon_greedy.epsilon:g})"
+            elif policy.startswith("P4@"):
+                label = f"P4 Contextual epsilon-greedy (epsilon={policy.removeprefix('P4@')})"
             rows.append({
-                "policy": policy if policy != "P1" else f"P1 (best fixed = {self.p1_topology.value})",
+                "policy": label,
                 "n": r.reward.n, "mean_reward": r.reward.mean, "std": r.reward.std,
                 "ci95": (r.reward.ci95_low, r.reward.ci95_high),
                 "not_applicable": r.not_applicable, "infeasible": r.infeasible,
@@ -207,11 +245,12 @@ class _Runner:
         return self._eligible_cache[scenario.scenario_id]
 
     def step(self, *, split: str, name: str, policy: TopologyPolicy, step: int, scenario: Scenario,
-             held_out: bool, learn: bool) -> RunRecord:
+             held_out: bool, learn: bool, policy_seed: int | None = None) -> RunRecord:
         context = extract_features(scenario)
         eligible = self.eligible(scenario)
         decision = policy.select(context.features, eligible, context.feature_schema_version)
-        decision_id = f"dec-{split}-{name}-{step}-{scenario.scenario_id}"
+        seed_tag = f"-ps{policy_seed}" if policy_seed is not None else ""
+        decision_id = f"dec-{split}-{name}{seed_tag}-{step}-{scenario.scenario_id}"
         result: MissionResult | None = None
         learned = False
         if decision.topology is not None:
@@ -228,14 +267,15 @@ class _Runner:
                     self.blocked[name] += 1
         episode = result.episode if result else None
         return RunRecord(
-            split=split, policy=name, step=step, scenario_id=scenario.scenario_id,
+            split=split, policy=name, policy_seed=policy_seed, step=step, scenario_id=scenario.scenario_id,
             mission_id=scenario.mission.mission_id, family=scenario.mission.family, held_out_combo=held_out,
             eligible=tuple(eligible), topology=decision.topology, applicable=decision.topology is not None,
             feasible=bool(result and result.feasible),
             reward=result.ground_truth_reward if result else None,
             admitted_reward=episode.reward if episode else None,
             episode_status=episode.status if episode else None,
-            learned=learned, warmup=decision.warmup, scores=dict(decision.scores),
+            learned=learned, warmup=decision.warmup, explored=decision.explored,
+            exploration_probability=decision.exploration_probability, scores=dict(decision.scores),
             metrics=dict(result.metrics) if result else {},
         )
 
@@ -243,17 +283,26 @@ class _Runner:
 def _policy_result(name: str, records: list[RunRecord], counterfactual: dict[str, dict[str, float]],
                    seed: int) -> PolicyResult:
     mine = [r for r in records if r.policy == name]
-    rewards = [r.reward for r in mine if r.applicable and r.feasible and r.reward is not None]
-    selected = {r.mission_id: r.reward for r in mine if r.applicable and r.feasible and r.reward is not None}
+    by_mission: dict[str, list[float]] = defaultdict(list)
+    by_mission_regret: dict[str, list[float]] = defaultdict(list)
+    family_by_mission: dict[str, str] = {}
+    for r in mine:
+        if r.applicable and r.feasible and r.reward is not None:
+            by_mission[r.mission_id].append(r.reward)
+            family_by_mission[r.mission_id] = r.family or "unknown"
+            best = max(counterfactual.get(r.mission_id, {}).values(), default=r.reward)
+            by_mission_regret[r.mission_id].append(max(best - r.reward, 0.0))
+    rewards = [float(np.mean(vals)) for vals in by_mission.values()]
+    selected = {mission: float(np.mean(vals)) for mission, vals in by_mission.items()}
     by_family: dict[str, list[float]] = defaultdict(list)
+    for mission, vals in by_mission.items():
+        by_family[family_by_mission[mission]].append(float(np.mean(vals)))
     sel_family: dict[str, Counter] = defaultdict(Counter)
     for r in mine:
         fam = r.family or "unknown"
         if r.topology is not None:
             sel_family[fam][r.topology.value] += 1
-        if r.applicable and r.feasible and r.reward is not None:
-            by_family[fam].append(r.reward)
-    regret = oracle_regret(selected, counterfactual)
+    regret = {mission: float(np.mean(vals)) for mission, vals in by_mission_regret.items()}
     metric_values: dict[str, list[float]] = defaultdict(list)
     for r in mine:
         if r.applicable and r.feasible:
@@ -269,6 +318,12 @@ def _policy_result(name: str, records: list[RunRecord], counterfactual: dict[str
         regret=summarize(list(regret.values()), seed=seed),
         reward_by_family={f: summarize(v, seed=seed) for f, v in sorted(by_family.items())},
         metric_means={k: float(np.mean(v)) for k, v in sorted(metric_values.items())},
+        exploration_count=sum(r.explored for r in mine),
+        exploration_rate=(
+            sum(r.explored for r in mine) / sum(r.exploration_probability is not None and not r.warmup for r in mine)
+            if any(r.exploration_probability is not None and not r.warmup for r in mine) else None
+        ),
+        policy_seed_count=len({r.policy_seed for r in mine if r.policy_seed is not None}) or 1,
     )
 
 
@@ -280,6 +335,8 @@ def run_experiment_a(
     extra_hash_configs: Sequence[SamgModel] = (),
     progress: Callable[[str], None] | None = None,
     splits: dict[str, list[tuple[Scenario, bool]]] | None = None,
+    epsilon_greedy: EpsilonGreedyExperimentConfig | None = None,
+    epsilon_sweep: bool = False,
 ) -> ExperimentResult:
     """Run Experiment A (P3 vs P1) and B (P3 vs P2) on one shared protocol.
 
@@ -319,7 +376,35 @@ def run_experiment_a(
         records.extend(recs)
         training_rewards[name] = [r.reward for r in recs]
 
-    # Held-out test: all policies, paired seeds, learners frozen.
+    # Optional P4 training: independent seeded runs on the same scenario stream.
+    p4_policies: dict[str, dict[int, TopologyPolicy]] = {}
+    p4_names: list[str] = []
+    if epsilon_greedy is not None:
+        epsilon_values = sorted(set(epsilon_greedy.epsilon_grid if epsilon_sweep else (epsilon_greedy.epsilon,)))
+        for epsilon in epsilon_values:
+            name = f"P4@{epsilon:g}" if epsilon_sweep else "P4"
+            p4_names.append(name)
+            p4_policies[name] = {}
+            p4_rewards: list[float | None] = []
+            for policy_seed in epsilon_greedy.policy_seeds:
+                policy = make_policy(
+                    "P4",
+                    {"epsilon": epsilon, "lam": epsilon_greedy.lam,
+                     "warmup_per_arm": epsilon_greedy.warmup_per_arm},
+                    seed=policy_seed,
+                )
+                p4_policies[name][policy_seed] = policy
+                say(f"train {name} seed={policy_seed}")
+                recs = [runner.step(split="train", name=name, policy=policy, step=i, scenario=s, held_out=h,
+                                    learn=True, policy_seed=policy_seed)
+                        for i, (s, h) in enumerate(train)]
+                records.extend(recs)
+                p4_rewards.extend(r.reward for r in recs)
+            training_rewards[name] = p4_rewards
+
+    policy_names = PERFORMANCE_POLICIES + tuple(p4_names)
+
+    # Held-out test: all policies, paired seeds, learner estimates frozen.
     policies: dict[str, TopologyPolicy] = {name: make_policy(name) for name in FIXED}
     policies["P1"] = make_policy("P1", {"topology": p1_topology.value})
     policies.update(learners)
@@ -329,6 +414,13 @@ def run_experiment_a(
         for i, (s, h) in enumerate(splits["test"]):
             test_records.append(runner.step(split="test", name=name, policy=policies[name], step=i,
                                             scenario=s, held_out=h, learn=False))
+    if epsilon_greedy is not None:
+        for name in p4_names:
+            for policy_seed, policy in p4_policies[name].items():
+                say(f"test {name} seed={policy_seed}")
+                for i, (s, h) in enumerate(splits["test"]):
+                    test_records.append(runner.step(split="test", name=name, policy=policy, step=i, scenario=s,
+                                                    held_out=h, learn=False, policy_seed=policy_seed))
     records.extend(test_records)
 
     counterfactual: dict[str, dict[str, float]] = defaultdict(dict)
@@ -337,20 +429,32 @@ def run_experiment_a(
             counterfactual[r.mission_id][r.topology.value] = r.reward
 
     seed = cfg.bootstrap_seed
-    test = {name: _policy_result(name, test_records, counterfactual, seed) for name in PERFORMANCE_POLICIES}
+    test = {name: _policy_result(name, test_records, counterfactual, seed) for name in policy_names}
 
     def per_mission(name: str) -> dict[str, float]:
-        return {r.mission_id: r.reward for r in test_records
-                if r.policy == name and r.applicable and r.feasible and r.reward is not None}
+        grouped: dict[str, list[float]] = defaultdict(list)
+        for r in test_records:
+            if r.policy == name and r.applicable and r.feasible and r.reward is not None:
+                grouped[r.mission_id].append(r.reward)
+        return {mission: float(np.mean(values)) for mission, values in grouped.items()}
 
     comparisons = [
         paired_comparison("P3", per_mission("P3"), "P1", per_mission("P1"), seed=seed),
         paired_comparison("P3", per_mission("P3"), "P2", per_mission("P2"), seed=seed),
         paired_comparison("P2", per_mission("P2"), "P1", per_mission("P1"), seed=seed),
     ]
+    if epsilon_greedy is not None:
+        for name in p4_names:
+            comparisons.extend([
+                paired_comparison(name, per_mission(name), "P3", per_mission("P3"), seed=seed),
+                paired_comparison(name, per_mission(name), "P2", per_mission("P2"), seed=seed),
+                paired_comparison(name, per_mission(name), "P1", per_mission("P1"), seed=seed),
+            ])
     return ExperimentResult(
         config=cfg,
-        config_hash=config_hash(cfg, costs, *extra_hash_configs),
+        epsilon_greedy=epsilon_greedy,
+        config_hash=config_hash(cfg, costs, *extra_hash_configs,
+                                *([epsilon_greedy] if epsilon_greedy is not None else [])),
         p1_topology=p1_topology,
         training_rewards=training_rewards,
         test=test,
@@ -383,6 +487,30 @@ class DevTuningResult(BaseModel):
     n_dev_eval: int
     results: list[DevAlphaResult]
     chosen_alpha: float
+    rule: str
+
+
+class DevEpsilonResult(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    epsilon: float
+    eval_reward: Summary
+    selection_counts: dict[str, int]
+    updates: int
+    replicate_means: dict[int, float]
+
+
+class EpsilonTuningResult(BaseModel):
+    """P4 epsilon selection using only the dev stream and dev evaluation block."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    grid: tuple[float, ...]
+    policy_seeds: tuple[int, ...]
+    n_dev_stream: int
+    n_dev_eval: int
+    results: list[DevEpsilonResult]
+    chosen_epsilon: float
     rule: str
 
 
@@ -433,3 +561,77 @@ def tune_alpha_on_dev(
     return DevTuningResult(grid=tuple(r.alpha for r in results), n_dev_stream=len(stream), n_dev_eval=len(held),
                            results=results, chosen_alpha=best.alpha,
                            rule="max dev-eval mean reward; ties -> smaller alpha")
+
+
+def tune_epsilon_on_dev(
+    cfg: ExperimentConfig,
+    executor: MissionExecutor,
+    policy_cfg: EpsilonGreedyExperimentConfig,
+    *,
+    costs: TopologyCostConfig | None = None,
+    stream_fraction: float = 0.5,
+    progress: Callable[[str], None] | None = None,
+) -> EpsilonTuningResult:
+    """Tune epsilon on dev data, averaging frozen dev-eval reward across policy seeds."""
+    dev = build_splits(cfg)["dev"]
+    cut = int(round(len(dev) * stream_fraction))
+    stream, held = dev[:cut], dev[cut:]
+    if not stream or not held:
+        raise ValueError("dev split too small to tune: need missions in both stream and evaluation block")
+    if not policy_cfg.epsilon_grid:
+        raise ValueError("epsilon grid must not be empty")
+    runner = _Runner(executor, costs or TopologyCostConfig())
+    say = progress or (lambda _msg: None)
+    results: list[DevEpsilonResult] = []
+    for epsilon in sorted(set(float(e) for e in policy_cfg.epsilon_grid)):
+        if not 0 <= epsilon <= 1:
+            raise ValueError("epsilon values must be in [0, 1]")
+        say(f"dev epsilon={epsilon}")
+        eval_records: list[RunRecord] = []
+        per_seed: dict[int, float] = {}
+        selection_counts: Counter[str] = Counter()
+        updates = 0
+        for policy_seed in policy_cfg.policy_seeds:
+            name = f"P4@{epsilon:g}:seed{policy_seed}"
+            policy = make_policy(
+                "P4",
+                {"epsilon": epsilon, "lam": policy_cfg.lam,
+                 "warmup_per_arm": policy_cfg.warmup_per_arm},
+                seed=policy_seed,
+            )
+            for i, (scenario, held_out) in enumerate(stream):
+                runner.step(split="dev", name=name, policy=policy, step=i, scenario=scenario,
+                            held_out=held_out, learn=True, policy_seed=policy_seed)
+            recs = [runner.step(split="dev-eval", name=name, policy=policy, step=i, scenario=scenario,
+                                held_out=held_out, learn=False, policy_seed=policy_seed)
+                    for i, (scenario, held_out) in enumerate(held)]
+            eval_records.extend(recs)
+            per_seed[policy_seed] = float(np.mean([r.reward for r in recs
+                                                   if r.applicable and r.feasible and r.reward is not None]))
+            selection_counts.update(r.topology.value for r in recs if r.topology is not None)
+            updates += runner.updates[name]
+        by_mission: dict[str, list[float]] = defaultdict(list)
+        for record in eval_records:
+            if record.applicable and record.feasible and record.reward is not None:
+                by_mission[record.mission_id].append(record.reward)
+        mission_means = [float(np.mean(values)) for values in by_mission.values()]
+        results.append(DevEpsilonResult(
+            epsilon=epsilon,
+            eval_reward=summarize(mission_means, seed=cfg.bootstrap_seed),
+            selection_counts=dict(selection_counts),
+            updates=updates,
+            replicate_means=per_seed,
+        ))
+    best = results[0]
+    for candidate in results[1:]:
+        if (candidate.eval_reward.mean or float("-inf")) > (best.eval_reward.mean or float("-inf")) + 1e-9:
+            best = candidate
+    return EpsilonTuningResult(
+        grid=tuple(result.epsilon for result in results),
+        policy_seeds=policy_cfg.policy_seeds,
+        n_dev_stream=len(stream),
+        n_dev_eval=len(held),
+        results=results,
+        chosen_epsilon=best.epsilon,
+        rule="max dev-eval mean across policy seeds; ties -> smaller epsilon",
+    )

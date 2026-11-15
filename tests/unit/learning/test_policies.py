@@ -17,6 +17,7 @@ from samg.domain import (
 )
 from samg.learning import (
     ARM_ORDER,
+    ContextualEpsilonGreedyPolicy,
     FixedTopologyPolicy,
     LinUCBPolicy,
     UCB1Policy,
@@ -102,7 +103,8 @@ def test_linucb_rejects_wrong_schema_or_dim() -> None:
         (dict(reward_source=RewardSource.AGENT_CLAIM), ReasonCode.UNTRUSTED_REWARD_SOURCE),
     ],
 )
-@pytest.mark.parametrize("make", [lambda: LinUCBPolicy(), lambda: UCB1Policy(), lambda: FixedTopologyPolicy(D)])
+@pytest.mark.parametrize("make", [lambda: LinUCBPolicy(), lambda: UCB1Policy(),
+                                   lambda: ContextualEpsilonGreedyPolicy(), lambda: FixedTopologyPolicy(D)])
 def test_protected_policies_refuse_ineligible(make, overrides: dict, reason: ReasonCode) -> None:  # type: ignore[no-untyped-def]
     policy = make()
     before = json.dumps(policy.snapshot(), sort_keys=True)
@@ -164,6 +166,44 @@ def test_ucb1_tries_each_arm_then_exploits() -> None:
     assert picks[3:] == [H, H]
 
 
+def test_epsilon_greedy_warmup_then_greedy_at_zero_epsilon() -> None:
+    def run() -> list[TopologyName]:
+        p = ContextualEpsilonGreedyPolicy(seed=5, epsilon=0.0, warmup_per_arm=1)
+        picks = []
+        for i in range(6):
+            d = p.select(X, ALL, "ctx-v1")
+            assert d.topology is not None
+            picks.append(d.topology)
+            p.observe(_event(i, topology=d.topology, reward=0.95 if d.topology is F else 0.1))
+        return picks
+
+    picks = run()
+    assert set(picks[:3]) == set(ALL)
+    assert picks[3:] == [F, F, F]
+    assert run() == picks
+
+
+def test_epsilon_greedy_samples_only_eligible_arms_and_replays_rng_state() -> None:
+    p = ContextualEpsilonGreedyPolicy(seed=37, epsilon=1.0, warmup_per_arm=0)
+    choices = [p.select(X, [H, F], "ctx-v1") for _ in range(30)]
+    assert {d.topology for d in choices} == {H, F}
+    assert all(d.explored and d.exploration_probability == 1.0 for d in choices)
+    clone = ContextualEpsilonGreedyPolicy.from_snapshot(json.loads(json.dumps(p.snapshot())))
+    assert [p.select(X, [H, F], "ctx-v1") for _ in range(20)] == [
+        clone.select(X, [H, F], "ctx-v1") for _ in range(20)
+    ]
+
+
+def test_epsilon_greedy_handles_empty_eligibility_and_bad_context() -> None:
+    p = ContextualEpsilonGreedyPolicy(seed=1, warmup_per_arm=0)
+    none = p.select(X, [], "ctx-v1")
+    assert none.topology is None and none.reason_codes == (ReasonCode.NO_ELIGIBLE_TOPOLOGY,)
+    with pytest.raises(ValueError, match="CONTEXT_SCHEMA_MISMATCH"):
+        p.select(X, [H], "ctx-v2")
+    with pytest.raises(ValueError, match="CONTEXT_SCHEMA_MISMATCH"):
+        p.select(X[:3], [H], "ctx-v1")
+
+
 def test_fixed_policy_does_not_substitute() -> None:
     d = FixedTopologyPolicy(H).select(X, [F, D], "ctx-v1")
     assert d.topology is None and d.reason_codes == (ReasonCode.TOPOLOGY_NOT_ELIGIBLE,)
@@ -175,6 +215,9 @@ def test_best_fixed_and_factory() -> None:
     assert make_policy("P0-F").select(X, ALL, "ctx-v1").topology is F
     assert make_policy("P1", {"topology": "HIERARCHICAL"}).kind == "P1-BestFixed"
     assert isinstance(make_policy("P2"), UCB1Policy)
+    p4 = make_policy("P4", {"epsilon": 0.25}, seed=13)
+    assert isinstance(p4, ContextualEpsilonGreedyPolicy)
+    assert p4.epsilon == 0.25 and p4.seed == 13
     p3 = make_policy("P3", {"alpha": 0.5}, seed=9)
     assert type(p3) is LinUCBPolicy and p3.alpha == 0.5 and p3.seed == 9  # type: ignore[attr-defined]
     assert isinstance(make_policy("S1"), VulnerableLinUCB)

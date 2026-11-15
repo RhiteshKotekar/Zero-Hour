@@ -76,11 +76,13 @@ python3 -m venv .venv
 
 ### Demo
 
-`python -m samg demo` runs three sections in about 10–20 s, and its output is byte-identical between runs:
+`python -m samg demo` runs four deterministic sections, including a short paired policy comparison:
 
 1. a clean judge-mission run, showing every step;
 2. a 30-mission learning stream;
-3. a validly signed false-report attack against a protected and a vulnerable learner, plus a replay attempt.
+3. a validly signed false-report attack against a protected and a vulnerable learner, plus a replay attempt;
+4. fixed/best-fixed, UCB1, LinUCB and contextual epsilon-greedy comparison output. The short sample is illustrative,
+   not a held-out experiment result.
 
 `python -m samg run --seed 7 --policy linucb --mode protected` shows one mission in full. [DEMO.md](docs/DEMO.md) lists every command and option, and explains each section. Demo settings (for example `alpha = 0.3`) are not experiment results.
 

@@ -286,6 +286,12 @@ Extends D004. Details are in [SECURITY_MODEL.md](SECURITY_MODEL.md#offline-train
 
 **Why:** The security table reports counts with denominators (brief §12.8); these definitions make the counts reproducible.
 
+## D038 — Contextual epsilon-greedy follow-up baseline (2026-11-15)
+
+**Decision:** Add P4 as a follow-up comparator to the frozen P0-P3 experiment. P4 uses ctx-v1 and the per-arm ridge-linear reward model, balanced warm-up, then epsilon-greedy selection over only D030-eligible topologies. It learns only from ADMITTED episodes with ACP-recomputed reward. Epsilon is tuned on dev data only; held-out evaluation averages results across predeclared policy seeds. Its settings and hash are separate in `config/epsilon_greedy.yaml` so the original frozen experiment and reported P0-P3 numbers remain unchanged.
+
+**Why:** A context-free epsilon-greedy sample-mean policy would duplicate UCB1's information limitation. Reusing the contextual linear estimate makes P4 a direct comparison of random exploration against LinUCB's confidence-bonus exploration. The measured comparison and its limits are recorded in `docs/RESULTS.md`; claims remain limited to those results.
+
 ## D034 — Experiment A/B sample sizes, dev-tuning rule and freeze (2026-11-15)
 
 **Decision:** `config/experiment.yaml` uses n_dev 40, n_train 120, n_test 60 (chosen from runtime before any result). LinUCB `alpha` is chosen from the predeclared grid {0.1, 0.3, 0.5, 1.0} on the dev split only (20-mission learning stream, 20-mission frozen evaluation block; highest dev-eval mean, ties to the smaller alpha). The config is then frozen (`frozen: true`) with a `# config_hash` comment over experiment + topology-cost + allocation + reward configs; a unit test fails if any hashed config changes without a deliberate re-freeze. The held-out test is run once.

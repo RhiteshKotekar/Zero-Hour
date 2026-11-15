@@ -1,0 +1,18 @@
+version: epsilon-greedy-exp-v1
+epsilon: 0.05
+epsilon_grid:
+- 0.05
+- 0.1
+- 0.2
+- 0.3
+- 0.5
+lam: 1.0
+warmup_per_arm: 2
+policy_seeds:
+- 101
+- 211
+- 307
+- 401
+- 503
+frozen: true
+# config_hash: e74de5917e5e0dde

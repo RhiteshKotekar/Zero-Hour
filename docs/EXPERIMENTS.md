@@ -26,6 +26,37 @@ Does LinUCB selection of a feasible organisational topology outperform fixed hie
 3. `FixedFunctionalCellPolicy` — same rule for functional-cell.
 4. `FixedDistributedPolicy` — same rule for distributed.
 
+### Follow-up comparator: contextual epsilon-greedy (P4)
+
+P4 is an additional, versioned follow-up experiment. It uses the same ctx-v1
+features and per-topology ridge-linear reward model as P3, then explores by
+choosing uniformly among feasible topologies with probability epsilon. After
+the seeded balanced warm-up, it otherwise chooses the topology with the largest
+predicted reward. This compares a fixed random-exploration rule with LinUCB's
+confidence-bonus exploration while retaining context. P2 remains the separate,
+context-free UCB1 baseline; P0-H/F/D and P1 remain the deterministic baselines.
+
+Tune epsilon only on the dev learning stream and frozen dev evaluation block,
+averaging over the predeclared policy seeds. The default grid is
+`{0.05, 0.1, 0.2, 0.3, 0.5}`; ties select the smaller epsilon. During held-out
+evaluation, P4 uses independent configured policy seeds, frozen learned
+estimators, and the same mission/simulator seeds as all other policies. Report
+per-mission reward averaged over P4 policy seeds and disclose the number of
+seeds, exploratory choices, and realized exploration rate. Its configuration
+and hash live in `config/epsilon_greedy.yaml`; the frozen P0-P3 experiment file
+and its measured result are left intact. Run with
+`python scripts/run_experiment_epsilon_greedy.py`. To evaluate every value in
+the frozen epsilon grid against P0/P1/P2/P3 on the same held-out missions, run
+`python scripts/run_experiment_epsilon_greedy.py --all-epsilons`. This records
+separate sweep outputs and does not retune epsilon on test data.
+
+Selector-only latency can be measured separately with
+`python scripts/benchmark_policy_latency.py`. The script trains policies
+through the normal pipeline, then times only `select()` on held-out contexts
+and feasibility sets; it excludes feature extraction, allocation, simulation,
+ACP, and frontend work. It writes per-call samples and a protocol/environment
+manifest under `artifacts/experiments/epsilon_greedy/`.
+
 All policies use the same `TopologyBuilder`, allocator, simulation, reward version, and topology eligibility logic. A baseline must not be allowed to use a topology unavailable to LinUCB.
 
 ### Context features (initial schema v1)

@@ -64,6 +64,8 @@ class DemoConfig:
     inflation: float = 0.20
     deflation: float = 0.30
     use_cpsat: bool = True
+    comparison_train: int = 18
+    comparison_test: int = 10
 
 
 # --- formatting helpers ------------------------------------------------------
@@ -310,6 +312,7 @@ class DemoResult:
     pre_attack_state: dict[str, Any] = field(default_factory=dict)
     protected_state: dict[str, Any] = field(default_factory=dict)
     vulnerable_state: dict[str, Any] = field(default_factory=dict)
+    comparison: Any | None = None
 
 
 def run_demo(out: Out = print, cfg: DemoConfig | None = None) -> DemoResult:
@@ -491,6 +494,62 @@ def run_demo(out: Out = print, cfg: DemoConfig | None = None) -> DemoResult:
         out("      UCB scores  S2: " + " ".join(f"{SHORT[a]}={sc2[a]:.3f}" for a in ARM_ORDER)
             + "   S1: " + " ".join(f"{SHORT[a]}={sc1[a]:.3f}" for a in ARM_ORDER))
     result.protected_state, result.vulnerable_state = s2.snapshot(), s1.snapshot()
+
+    # 4 -----------------------------------------------------------------------
+    out("")
+    out("SECTION 4. POLICY COMPARISON: fixed baselines, UCB1, LinUCB, and contextual epsilon-greedy")
+    out(SUB)
+    out("Short, seeded CLI demonstration on a shared scenario stream. These sample results illustrate the")
+    out("comparison output; use scripts/run_experiment_epsilon_greedy.py for dev tuning and held-out results.")
+    from samg.evaluation.executor import OrchestrationExecutor
+    from samg.evaluation.runner import (
+        EpsilonGreedyExperimentConfig,
+        ExperimentConfig,
+        run_experiment_a,
+    )
+
+    compare_cfg = ExperimentConfig(
+        version="cli-demo-comparison-v1",
+        master_seed=cfg.stream_seed_base,
+        n_dev=0,
+        n_train=max(9, min(cfg.comparison_train, 18)),
+        n_test=max(6, min(cfg.comparison_test, 10)),
+        alpha=cfg.alpha,
+        lam=learner.lam,
+        warmup_per_arm=1,
+        frozen=True,
+    )
+    eps_cfg = EpsilonGreedyExperimentConfig(
+        epsilon=0.2,
+        epsilon_grid=(0.2,),
+        lam=learner.lam,
+        warmup_per_arm=1,
+        policy_seeds=(cfg.policy_seed, cfg.policy_seed + 1, cfg.policy_seed + 2),
+    )
+    comparison_executor = OrchestrationExecutor(settings)
+    comparison = run_experiment_a(compare_cfg, comparison_executor, costs=settings.costs,
+                                  epsilon_greedy=eps_cfg)
+    result.comparison = comparison
+    out(f"sample size: {compare_cfg.n_train} training missions; {compare_cfg.n_test} evaluation missions; "
+        f"P4 averaged across {len(eps_cfg.policy_seeds)} policy seeds; epsilon={eps_cfg.epsilon:.2f}")
+    out("policy                         mean reward   bootstrap 95% CI          regret   selections")
+    for policy in ("P0-H", "P0-F", "P0-D", "P1", "P2", "P3", "P4"):
+        summary = comparison.test[policy]
+        label = policy if policy != "P1" else f"P1 (best fixed {comparison.p1_topology.value})"
+        ci = f"[{summary.reward.ci95_low:.4f}, {summary.reward.ci95_high:.4f}]" \
+            if summary.reward.ci95_low is not None and summary.reward.ci95_high is not None else "n/a"
+        selections = ", ".join(f"{arm}={count}" for arm, count in sorted(summary.selection_counts.items())) or "none"
+        out(f"{label:<29} {summary.reward.mean if summary.reward.mean is not None else float('nan'):>11.4f}   "
+            f"{ci:<23} {summary.regret.mean if summary.regret.mean is not None else float('nan'):>7.4f}   {selections}")
+    out("paired reward differences (same evaluation missions; positive favors the first policy):")
+    for item in comparison.comparisons:
+        out(f"  {item.a} - {item.b}: {item.mean_diff if item.mean_diff is not None else float('nan'):+.4f} "
+            f"95% CI [{item.ci95_low}, {item.ci95_high}], W/L/T={item.wins}/{item.losses}/{item.ties}, "
+            f"n={item.n_pairs}")
+    p4 = comparison.test["P4"]
+    out(f"P4 exploratory choices: {p4.exploration_count}; realized rate={p4.exploration_rate}; "
+        f"policy seeds={p4.policy_seed_count}")
+
     out("")
     out(RULE)
     out("Summary: a valid signature proved who sent each false report, not that it was true. The ACP disputed")

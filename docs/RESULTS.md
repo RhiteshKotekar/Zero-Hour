@@ -6,6 +6,115 @@ CI [+0.0038, +0.0090], but only because UCB1 locked onto the worst arm. Under th
 P3 > P2 gap disappears, and P3 is significantly *worse* than P1 in 7 of 10 settings. All topologies complete every
 mission, and the reward gaps are below 0.01.
 
+### P4 follow-up comparison
+
+Contextual epsilon-greedy (P4) is implemented as a separate follow-up comparison.
+Its dev-tuning and held-out workflow is `scripts/run_experiment_epsilon_greedy.py`,
+with its own `config/epsilon_greedy.yaml` and config hash. No held-out P4 result is
+recorded in the original P0-P3 experiment; the P0-P3 measurements below remain
+unchanged. The P4 follow-up used the existing 40/120/60 dev/train/test split,
+epsilon candidates `{0.05, 0.1, 0.2, 0.3, 0.5}`, and five policy seeds
+`101, 211, 307, 401, 503`. The selected epsilon was 0.05. Its follow-up config
+hash is `e74de5917e5e0dde`.
+
+Dev evaluation means were 0.77158 (epsilon 0.05), 0.77135 (0.1), 0.77132
+(0.2), 0.77140 (0.3), and 0.77109 (0.5); their 95% CIs overlap. The selected
+value is weakly supported by dev data.
+
+#### Held-out comparison
+
+P4's reward is averaged across its five policy seeds per mission. Confidence
+intervals are across the 60 paired held-out missions. P1 was selected as
+DISTRIBUTED on training data; it and P0-D are N/A on six held-out missions.
+
+| Policy | n | Mean reward | 95% CI | Mean regret | N/A |
+|---|---:|---:|---|---:|---:|
+| P0-H fixed hierarchical | 60 | 0.76828 | [0.76153, 0.77513] | 0.00677 | 0 |
+| P0-F fixed functional-cell | 60 | 0.76554 | [0.75826, 0.77285] | 0.00951 | 0 |
+| P0-D fixed distributed | 54 | 0.77319 | [0.76669, 0.78005] | 0.00206 | 6 |
+| P1 best fixed (DISTRIBUTED) | 54 | 0.77319 | [0.76669, 0.78005] | 0.00206 | 6 |
+| P2 UCB1 | 60 | 0.76554 | [0.75826, 0.77285] | 0.00951 | 0 |
+| P3 LinUCB | 60 | 0.77183 | [0.76527, 0.77850] | 0.00322 | 0 |
+| P4 contextual epsilon-greedy | 60 | 0.76618 | [0.75906, 0.77335] | 0.00887 | 0 |
+
+| Paired comparison | P4 − baseline | 95% CI | W/L/T | Pairs |
+|---|---:|---|---:|---:|
+| P4 − P3 | −0.00565 | [−0.00827, −0.00327] | 15/39/6 | 60 |
+| P4 − P2 | +0.00064 | [+0.00032, +0.00098] | 24/8/28 | 60 |
+| P4 − P1 | −0.00719 | [−0.01046, −0.00443] | 15/39/0 | 54 |
+
+P4 therefore beat this UCB1 run by a small margin, while trailing LinUCB and
+best-fixed on the held-out set. P2 selected FUNCTIONAL_CELL on all 60 missions;
+P4 selected FUNCTIONAL_CELL 229 times, HIERARCHICAL 68 times, and DISTRIBUTED
+3 times across its 300 seed-by-mission decisions. It made 9 exploratory choices
+(3% realized exploration rate). These results support a measured comparison on
+this protocol, not a general claim that epsilon-greedy is superior.
+
+The short `python -m samg demo` comparison remains illustrative only. Full
+records and dev-tuning output are saved under the ignored
+`artifacts/experiments/epsilon_greedy/` directory.
+
+#### Full epsilon-grid sweep
+
+To compare every predeclared epsilon value directly, the same held-out 60
+missions were run for each value, with five independent P4 policy seeds per
+epsilon. P0/P1/P2/P3 baselines were evaluated in that same run. The table gives
+P4 mean reward across seeds and paired reward differences against LinUCB (P3),
+UCB1 (P2), and best-fixed (P1). CIs are paired 95% bootstrap intervals;
+win/loss/tie counts are relative to the named baseline. P1 has only 54 eligible
+missions because DISTRIBUTED is unavailable on 6.
+
+| ε | P4 reward (n=60) | P4−P3 [95% CI], W/L/T | P4−P2 [95% CI], W/L/T | P4−P1 [95% CI], W/L/T |
+|---:|---:|---|---|---|
+| 0.05 | 0.76618 | −0.00565 [−0.00827, −0.00327], 15/39/6 | +0.00064 [+0.00032, +0.00098], 24/8/28 | −0.00719 [−0.01046, −0.00443], 15/39/0 |
+| 0.1 | 0.76803 | −0.00380 [−0.00596, −0.00189], 17/36/7 | +0.00249 [+0.00144, +0.00365], 36/11/13 | −0.00516 [−0.00789, −0.00272], 16/36/2 |
+| 0.2 | 0.76756 | −0.00427 [−0.00669, −0.00211], 15/40/5 | +0.00202 [+0.00111, +0.00307], 31/13/16 | −0.00583 [−0.00884, −0.00324], 15/39/0 |
+| 0.3 | 0.76804 | −0.00379 [−0.00601, −0.00191], 18/39/3 | +0.00250 [+0.00154, +0.00358], 39/13/8 | −0.00515 [−0.00787, −0.00281], 15/38/1 |
+| 0.5 | 0.76979 | −0.00204 [−0.00402, −0.00038], 19/39/2 | +0.00425 [+0.00280, +0.00583], 45/13/2 | −0.00352 [−0.00585, −0.00160], 14/39/1 |
+
+Across this epsilon grid, every P4 value trails LinUCB and best-fixed on this
+test set (the paired intervals are below zero). Every value exceeds UCB1's
+mean, but this reflects this particular UCB1 run's lock-in on FUNCTIONAL_CELL;
+it does not establish a general epsilon-greedy advantage. ε=0.5 gives the
+highest P4 mean here, while ε=0.05 remains the value selected by the separate
+dev-only tuning rule. These results compare only the configured five values,
+not every real number in [0,1]. Reproduce with
+`python scripts/run_experiment_epsilon_greedy.py --all-epsilons`; raw records
+are `epsilon_sweep_records.csv` and aggregate output is `epsilon_sweep_result.json`.
+
+#### Headless policy-selection latency
+
+I also measured decision latency separately from reward. The benchmark trained
+P3 and each P4 epsilon/seed on the same 120 training missions through the real
+runner and allocator/simulator/ACP feedback path, then timed only the real
+`policy.select(context, eligible, schema)` call. Inputs came from the 60 held-out
+scenarios; feature extraction, allocation, simulation, ACP, and frontend work
+were outside the timed interval. After 500 warm-up calls, it measured 50 passes
+over the 60 scenarios per policy. The benchmark uses `perf_counter_ns` and
+interleaves policies. Machine: Windows 11, Intel64 Family 6 Model 170 Stepping
+4, Python 3.12.10, NumPy 2.5.4.
+
+| Policy | ε | Timed calls | Median | p95 | p99 |
+|---|---:|---:|---:|---:|---:|
+| P3 LinUCB | — | 15,000 | 60.1 µs | 107.0 µs | 288.8 µs |
+| P4 epsilon-greedy | 0.05 | 15,000 | 38.8 µs | 67.2 µs | 209.7 µs |
+| P4 epsilon-greedy | 0.1 | 15,000 | 38.7 µs | 67.3 µs | 218.5 µs |
+| P4 epsilon-greedy | 0.2 | 15,000 | 38.8 µs | 67.9 µs | 210.6 µs |
+| P4 epsilon-greedy | 0.3 | 15,000 | 39.0 µs | 67.2 µs | 204.4 µs |
+| P4 epsilon-greedy | 0.5 | 15,000 | 39.4 µs | 69.6 µs | 211.6 µs |
+
+Both policies used the same five policy seeds, each trained on the same
+120-mission stream. In this local microbenchmark, P4's median decision took
+about 35% less time than P3's. That is a measured selector-only latency advantage in this specific
+Python/hardware setup, not evidence of lower end-to-end mission latency: the
+allocator, simulation, and orchestration are excluded and may dominate. The
+P3 and P4 sample counts differ because P4 includes five policy seeds. Tail
+latencies have noticeable host/runtime jitter, so these figures should be
+treated as a local benchmark result, not a hardware-independent guarantee.
+Reproduce with `python scripts/benchmark_policy_latency.py`; raw samples and
+the machine/config manifest are in `policy_latency_samples.csv` and
+`policy_latency_summary.json` under the ignored epsilon-greedy artifacts folder.
+
 All numbers below come from one real run of `scripts/run_experiment_a.py` against the full pipeline
 (CP-SAT allocation → simulator → witness → ACP admission), through `samg.evaluation.executor.OrchestrationExecutor`.
 No value is estimated or copied from elsewhere. Raw output (gitignored): `artifacts/experiments/`

@@ -29,6 +29,8 @@ class PolicyDecision(BaseModel):
     means: dict[TopologyName, float] = Field(default_factory=dict)
     bonuses: dict[TopologyName, float] = Field(default_factory=dict)
     warmup: bool = False
+    explored: bool = False
+    exploration_probability: float | None = None
     reason_codes: tuple[ReasonCode, ...] = ()
 
 

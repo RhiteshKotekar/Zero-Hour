@@ -191,6 +191,9 @@ def test_demo_is_deterministic_and_attack_only_moves_vulnerable() -> None:
     res = run_demo(lines_a.append, cfg)
     run_demo(lines_b.append, cfg)
     assert lines_a == lines_b
+    assert res.comparison is not None
+    assert set(res.comparison.test) >= {"P0-H", "P0-F", "P0-D", "P1", "P2", "P3", "P4"}
+    assert "SECTION 4. POLICY COMPARISON" in "\n".join(lines_a)
     assert all(not r.attacked or r.learning_event.reward_source is RewardSource.ACP_RECOMPUTED
                for r in res.protected_attack if r.learning_event)
     false_decisions = [d for r in res.protected_attack for d in r.final_decisions

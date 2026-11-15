@@ -19,7 +19,7 @@ No ML or torch is needed.
 
 | Command | What it shows | Time |
 | --- | --- | --- |
-| `.venv\Scripts\python -m samg demo` | All three sections below | ~10 s |
+| `.venv\Scripts\python -m samg demo` | All four sections below | ~10 s plus the comparison sample |
 | `.venv\Scripts\python -m samg demo --greedy` | Same, with the greedy allocator instead of CP-SAT | faster |
 | `.venv\Scripts\python -m samg demo --alpha 0.5 --n-learn 20 --n-attack 6` | Different demo settings | |
 | `.venv\Scripts\python -m samg run --seed 7 --policy linucb --mode protected` | One judge mission, every step | ~1 s |
@@ -83,6 +83,13 @@ learned `θ·x` for the judge context.
   episode is refused with DUPLICATE_EPISODE, and neither learner's state changes.
 - **Divergence:** ‖A_S1−A_S2‖, ‖b_S1−b_S2‖ and ‖θ_S1−θ_S2‖ per arm, plus each learner's next choice for
   the judge mission and for an unseen generated mission.
+
+**Section 4: policy comparison.** A short seeded run compares the three fixed policies (P0-H/F/D), best-fixed
+P1, context-free UCB1 (P2), LinUCB (P3), and contextual epsilon-greedy (P4). The table shows reward, bootstrap
+interval, simulator-oracle regret, and selected topologies. Paired differences are reported for P3 versus P1/P2
+and P4 versus P1/P2/P3. P4 averages over three policy seeds and reports its exploration count/rate. This is a
+compact CLI illustration, not a held-out result or performance claim. Use
+`python scripts/run_experiment_epsilon_greedy.py` for dev-only epsilon tuning and the versioned held-out run.
 
 Sample of a real run (trimmed):
 

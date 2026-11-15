@@ -14,12 +14,14 @@ from samg.context import extract_features
 from samg.domain import EpisodeRecord, EpisodeStatus, ReasonCode, Scenario, TopologyName
 from samg.evaluation.metrics import bootstrap_ci, oracle_regret, paired_comparison, summarize
 from samg.evaluation.runner import (
+    EpsilonGreedyExperimentConfig,
     PERFORMANCE_POLICIES,
     ExperimentConfig,
     MissionResult,
     build_splits,
     load_experiment,
     run_experiment_a,
+    tune_epsilon_on_dev,
 )
 
 SMALL = ExperimentConfig(n_dev=2, n_train=24, n_test=8, warmup_per_arm=1)
@@ -172,3 +174,45 @@ def test_dev_tuning_uses_dev_split_only_and_picks_by_rule() -> None:
     assert tuning.n_dev_stream == 6 and tuning.n_dev_eval == 6
     best = max(r.eval_reward.mean for r in tuning.results)
     assert tuning.chosen_alpha == min(r.alpha for r in tuning.results if r.eval_reward.mean >= best - 1e-9)
+
+
+def test_contextual_epsilon_greedy_is_compared_across_policy_seeds() -> None:
+    cfg = ExperimentConfig(n_dev=2, n_train=6, n_test=3, warmup_per_arm=1)
+    eg = EpsilonGreedyExperimentConfig(epsilon=0.2, epsilon_grid=(0.1, 0.2),
+                                       warmup_per_arm=1, policy_seeds=(11, 29))
+    result = run_experiment_a(cfg, SyntheticExecutor(), epsilon_greedy=eg)
+    assert "P4" in result.test and result.test["P4"].policy_seed_count == 2
+    p4_train = [r for r in result.records if r.policy == "P4" and r.split == "train"]
+    p4_test = [r for r in result.records if r.policy == "P4" and r.split == "test"]
+    assert len(p4_train) == 2 * cfg.n_train and len(p4_test) == 2 * cfg.n_test
+    assert all(not r.learned for r in p4_test)
+    assert all(r.episode_status is EpisodeStatus.ADMITTED for r in p4_train if r.learned)
+    assert {r.policy_seed for r in p4_test} == {11, 29}
+    assert { (c.a, c.b) for c in result.comparisons if c.a == "P4" } == {
+        ("P4", "P1"), ("P4", "P2"), ("P4", "P3")
+    }
+    assert result.config_hash != run_experiment_a(cfg, SyntheticExecutor()).config_hash
+
+    sweep = run_experiment_a(cfg, SyntheticExecutor(), epsilon_greedy=eg, epsilon_sweep=True)
+    assert {name for name in sweep.test if name.startswith("P4@")} == {"P4@0.1", "P4@0.2"}
+    assert all(sweep.test[name].policy_seed_count == 2 for name in ("P4@0.1", "P4@0.2"))
+    assert {(item.a, item.b) for item in sweep.comparisons if item.a.startswith("P4@")} == {
+        (name, baseline) for name in ("P4@0.1", "P4@0.2") for baseline in ("P1", "P2", "P3")
+    }
+
+
+def test_epsilon_tuning_uses_dev_only_and_averages_policy_seeds() -> None:
+    cfg = ExperimentConfig(n_dev=12, n_train=4, n_test=4, warmup_per_arm=1)
+    executor = SyntheticExecutor()
+    policy_cfg = EpsilonGreedyExperimentConfig(epsilon=0.1, epsilon_grid=(0.2, 0.1),
+                                               warmup_per_arm=1, policy_seeds=(7, 13))
+    tuning = tune_epsilon_on_dev(cfg, executor, policy_cfg)
+    dev_ids = {scenario.scenario_id for scenario, _ in build_splits(cfg)["dev"]}
+    assert {scenario_id for scenario_id, _, _ in executor.calls} <= dev_ids
+    assert tuning.grid == (0.1, 0.2)
+    assert tuning.n_dev_stream == 6 and tuning.n_dev_eval == 6
+    assert all(set(row.replicate_means) == {7, 13} for row in tuning.results)
+    best = max(row.eval_reward.mean for row in tuning.results)
+    assert tuning.chosen_epsilon == min(
+        row.epsilon for row in tuning.results if row.eval_reward.mean >= best - 1e-9
+    )

@@ -25,6 +25,7 @@ The queue is worked in order, top to bottom. Each finished item that produces a 
 | 17 | running (AG) | A+V | Demo bundles (clean + attack), README quick start on a clean venv, `VALIDATION_LOG.md` hand-off | V can reproduce from README |
 | 18 | ask | A | Push `a/contracts`, open PR to `main` | User approval |
 | 19 | later | A | Neural baseline integration: Experiment E (local), decoder ablations, 16/32-task sweep | Only after the MVP ships |
+| 20 | done | A+B | Contextual epsilon-greedy P4 comparator; separate dev tuning and multi-policy-seed evaluation | Dev tuned; 60 held-out missions run; results recorded in `docs/RESULTS.md` (R12) |
 
 ## Results log
 
@@ -82,3 +83,8 @@ The queue is worked in order, top to bottom. Each finished item that produces a 
 - **Result (60 held-out missions, config hash 8b98c35a16a6d069):** P3 LinUCB 0.7718, P1 best fixed (DISTRIBUTED) 0.7732, P2 UCB1 0.7655. P3 − P1 = −0.0013 [−0.0033, +0.0005]. P3 − P2 = +0.0063 [+0.0038, +0.0090], but only because UCB1 locked onto the worst arm; on the base ablation set it is +0.0002. Across 10 ablation settings, P3 − P1 is never significantly positive.
 - **Significance:** high. The adaptive-coordination claim is **not supported**. Every topology completes every mission (C = 1.000), so all reward differences are below 0.01. The graph itself is functional: coordination cost differs between topologies on 60/60 missions.
 - **Architecture:** the selection machinery works, but the mission model gives topology too little leverage on reward. To make topology matter, the model would need outcomes that topology can change (deadline misses, task failures from communication loss, capacity pressure), not only small duration and overhead terms. Any such change must be predeclared and re-run from dev tuning. Open question: how to score a fixed policy when its arm is ineligible (currently N/A; P1 was N/A on 6/60 test missions).
+
+### R12 — Contextual epsilon-greedy comparator (D038)
+- **Result:** dev tuning chose epsilon 0.05 from `{0.05, 0.1, 0.2, 0.3, 0.5}` using five policy seeds. The full held-out sweep ran all five values on the same 60 missions, each over five policy seeds. Epsilon 0.5 had the highest P4 mean (0.76979); all epsilon values trailed LinUCB and best-fixed, and exceeded this UCB1 run. Detailed paired intervals are in `docs/RESULTS.md`; config hash `e74de5917e5e0dde`.
+- **Significance:** higher exploration improved P4's mean across this grid but did not overtake LinUCB or best-fixed. The best-fixed result is based on 54 eligible missions; the UCB1 outcome reflects that run locking onto FUNCTIONAL_CELL. The chosen epsilon remains 0.05 under the dev-only tuning rule. The original frozen P0-P3 config/results remain unchanged.
+- **Architecture:** `scripts/run_experiment_epsilon_greedy.py --all-epsilons` reuses the frozen split, baselines, mission seeds, and independent five policy seeds per epsilon; records are saved in `epsilon_sweep_records.csv` and `epsilon_sweep_result.json`. The CLI demo also prints an explicitly illustrative small comparison.

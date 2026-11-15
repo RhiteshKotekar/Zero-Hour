@@ -19,6 +19,8 @@ from samg.domain import AgentProfile, CapabilityMatch, MissionSpec, Scenario, Ta
 JUDGE_SCENARIO_ID = "judge-inspect-repair-v1"
 MINUTE_MS = 60_000.0
 GENERATOR_VERSION = "gen-v1"
+DEFAULT_DEADLINE_FACTOR = 1.6
+V2_DEADLINE_FACTOR = 1.25  # predeclared for model v2 (D041)
 
 
 def _agent(agent_id: str, role: str, caps: list[str], capacity: int, budget: float, *,
@@ -176,7 +178,8 @@ def _critical_path(durations: list[float], deps: list[list[int]]) -> float:
     return max(finish)
 
 
-def generate_scenario(seed: int, factors: ScenarioFactors | None = None) -> Scenario:
+def generate_scenario(seed: int, factors: ScenarioFactors | None = None, *,
+                      deadline_factor: float = DEFAULT_DEADLINE_FACTOR) -> Scenario:
     """Deterministic scenario for ``(seed, factors)``.
 
     Guarantees: every task has a capable, available agent; capacities and budgets are
@@ -273,14 +276,19 @@ def generate_scenario(seed: int, factors: ScenarioFactors | None = None) -> Scen
                  dependencies=[tid[j] for j in deps[i]])
         for i in range(n_tasks)
     )
-    scenario_id = f"{GENERATOR_VERSION}-{seed}-{factors.key()}"
+    # Model v2 (D041) tightens the deadline to 1.25x the critical path. The default keeps gen-v1
+    # scenarios byte-identical; any other factor is a distinct generator version and scenario ID.
+    version = (GENERATOR_VERSION if deadline_factor == DEFAULT_DEADLINE_FACTOR
+               else f"{GENERATOR_VERSION}-deadline{deadline_factor:g}")
+    scenario_id = f"{version}-{seed}-{factors.key()}"
     mission = MissionSpec(
-        mission_id=f"M-{seed}-{factors.key()}",
+        mission_id=f"M-{seed}-{factors.key()}" + ("" if version == GENERATOR_VERSION else "-v2dl"),
         scenario_id=scenario_id,
         tasks=tasks,
-        deadline_ms=round(_critical_path(durations, deps) * 1.6, 1),
-        generator_version=GENERATOR_VERSION,
-        generator_params={"seed": seed, **factors.model_dump(), "n_tasks": n_tasks, "n_workers": n_workers},
+        deadline_ms=round(_critical_path(durations, deps) * deadline_factor, 1),
+        generator_version=version,
+        generator_params={"seed": seed, **factors.model_dump(), "n_tasks": n_tasks, "n_workers": n_workers,
+                          **({} if deadline_factor == DEFAULT_DEADLINE_FACTOR else {"deadline_factor": deadline_factor})},
         family=factors.family(),
     )
     return Scenario(scenario_id=scenario_id, seed=seed, mission=mission, agents=tuple(agents))

@@ -25,6 +25,31 @@ class CostSetting(SamgModel):
     h1: float = Field(ge=0)
 
 
+class SimulationModelConfig(SamgModel):
+    """Mission model v2 (D041): rules that let coordination change outcomes, not only cost.
+
+    Absent (``TopologyCostConfig.simulation_model is None``) means model v1: every existing
+    run, the CLI demo, the dashboard and the warehouse twin behave exactly as before.
+    """
+
+    version: str = "sim-v2"
+    handoff_max_attempts: int = Field(
+        default=2, ge=1, le=3,
+        description="Attempts per handoff hop (v1 uses 3). With 2 = one retry; if every attempt is lost the "
+        "dependent task is BLOCKED and later FAILED, and its dependents are blocked too.",
+    )
+    enforce_deadline: bool = Field(
+        default=True, description="A task completing after mission.deadline_ms does not count in C.")
+    relay_queue: bool = Field(
+        default=True,
+        description="Intermediate agents on a handoff path relay one message at a time (processed in plan order).",
+    )
+
+
+V2_HOP_FAILURE_PROBABILITY = 0.05
+"""Predeclared v2 per-hop loss probability (D041); fixed before any v2 result."""
+
+
 class TopologyCostConfig(SamgModel):
     """Graph-derived coordination cost (brief §5.4), identical rule for every topology."""
 
@@ -53,6 +78,15 @@ class TopologyCostConfig(SamgModel):
             "high": CostSetting(h0=2.0, h1=1.0),
         }
     )
+
+    simulation_model: SimulationModelConfig | None = Field(
+        default=None, description="None = mission model v1. Set via with_model_v2() (D041).")
+
+    def with_model_v2(self, model: SimulationModelConfig | None = None,
+                      hop_failure_probability: float = V2_HOP_FAILURE_PROBABILITY) -> TopologyCostConfig:
+        """This config under mission model v2, with the predeclared v2 values unless overridden."""
+        return self.model_copy(update={"simulation_model": model or SimulationModelConfig(),
+                                       "hop_failure_probability": hop_failure_probability})
 
     def handoff_cost(self, hops: int) -> float:
         """Cost of handing work across ``hops`` coordination hops (0 hops = same agent)."""
@@ -132,7 +166,10 @@ def load_config(model: type[_C], filename: str, config_dir: Path | None = None) 
 
 def config_hash(*configs: SamgModel) -> str:
     """Stable short hash of one or more configs, for run manifests and freezes."""
-    payload = json.dumps([c.model_dump(mode="json") for c in configs], sort_keys=True, separators=(",", ":"))
+    # exclude_none: optional sections that are absent (e.g. simulation_model under model v1) do not
+    # change the hash, so configs frozen before such sections existed keep their recorded hash.
+    payload = json.dumps([c.model_dump(mode="json", exclude_none=True) for c in configs], sort_keys=True,
+                         separators=(",", ":"))
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
 
 

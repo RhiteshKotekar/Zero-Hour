@@ -64,6 +64,9 @@ def compute_metrics(
     by_task = {o.task_id: o for o in outcomes}
     total_priority = sum(t.priority_weight for t in mission.tasks)
     done = {t.task_id for t in mission.tasks if by_task.get(t.task_id) and by_task[t.task_id].completed}
+    if costs.simulation_model is not None and costs.simulation_model.enforce_deadline:
+        # model v2 (D041): work finished after the deadline does not count as completed
+        done = {t for t in done if by_task[t].end is None or by_task[t].end <= mission.deadline_ms}
     completion = sum(mission.task(t).priority_weight for t in done) / total_priority
 
     ends = [by_task[t].end for t in done if by_task[t].end is not None]

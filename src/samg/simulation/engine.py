@@ -39,6 +39,17 @@ Execution model (all randomness from ``np.random.default_rng(seed)``):
   witness (``samg.witness``), never by the simulator or an agent.
 * Unassigned tasks go ``OPEN -> BLOCKED -> FAILED``.
 
+Mission model v2 (D041, opt-in via ``costs.simulation_model``; absent = v1, unchanged):
+
+* ``handoff_max_attempts`` (v2: 2) replaces ``MAX_HOP_ATTEMPTS`` (3), so with the v2 hop loss
+  probability a lost handoff really can block and then fail the dependent task.
+* ``relay_queue``: every intermediate agent on a handoff path relays one message at a time.
+  A message reaching a busy relay waits until it is free; relays are served in plan order.
+* ``enforce_deadline`` is applied in ``compute_metrics`` (a task finishing after the deadline
+  does not count in C); the trace itself is unchanged.
+* The randomness is drawn exactly as in v1 (same blocks, same order), so v1 and v2 runs of a
+  seed see the same jitter and the same per-hop draws.
+
 Times are integer simulated milliseconds so witness events (``sim_time_ms``)
 reproduce the ground-truth metrics exactly.
 """
@@ -124,6 +135,9 @@ def run(
     outcomes: dict[str, TaskOutcome] = {}
     comm_failures = 0
     forced = set(forced_failures)
+    model = costs.simulation_model
+    max_attempts = model.handoff_max_attempts if model is not None else MAX_HOP_ATTEMPTS
+    relay_free: dict[str, int] | None = {} if model is not None and model.relay_queue else None
     breakdown_task = {task_id: agent for agent, task_id in (agent_breakdowns or {}).items()}
     agent_down: dict[str, int] = {}
     scheduled_down = {agent: int(round(ms)) for agent, ms in (agent_down_at_ms or {}).items()}
@@ -140,21 +154,27 @@ def run(
                 continue
             h = handoff.get((dep, a.task_id))
             hops = h.hops if h else 0
-            delay = 0
+            t_msg = end_time[dep]
             lost = False
             for hop in range(hops):
+                relay = h.path[hop] if (relay_free is not None and h is not None and hop >= 1) else None
+                if relay is not None:
+                    t_msg = max(t_msg, relay_free.get(relay, 0))  # wait for a busy relay
                 attempts = 0
-                while attempts < MAX_HOP_ATTEMPTS:
+                while attempts < max_attempts:
                     ok = hop_draws[(dep, a.task_id)][hop, attempts] >= costs.hop_failure_probability
                     attempts += 1
-                    delay += int(round(costs.handoff_delay_ms_per_hop))
+                    t_msg += int(round(costs.handoff_delay_ms_per_hop))
                     if ok:
                         break
                     comm_failures += 1
                 else:
                     lost = True
+                if relay is not None:
+                    relay_free[relay] = t_msg
+                if lost:
                     break
-            arrival = end_time[dep] + delay
+            arrival = t_msg
             if lost:
                 blocked_at = max(blocked_at or 0, arrival)
                 reason = f"MESSAGE_LOST:{dep}"

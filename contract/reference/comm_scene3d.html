@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SAMG mission replay</title>
+<style>
+  :root {
+    --bg: #070b14; --panel: rgba(13, 19, 33, 0.82); --panel-border: rgba(120, 160, 255, 0.18);
+    --text: #e6edf7; --muted: #8a97ad; --accent: #4cc9f0; --good: #2ee6a6; --bad: #ff4d6d;
+    --warn: #ffb547; --violet: #b388ff; --gold: #ffd166;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); overflow: hidden;
+    font: 13px/1.4 Inter, "Segoe UI", system-ui, -apple-system, sans-serif; }
+  #stage { position: absolute; inset: 0; }
+  #labels { position: absolute; inset: 0; pointer-events: none; }
+  .panel { position: absolute; background: var(--panel); border: 1px solid var(--panel-border);
+    border-radius: 14px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45); }
+  .panel h3 { margin: 0 0 8px; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  #topbar { top: 12px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 12px;
+    padding: 8px 14px; white-space: nowrap; }
+  #topbar .title { font-weight: 700; letter-spacing: .02em; }
+  .chip { padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: .06em; }
+  .chip.topo { background: rgba(76, 201, 240, .16); color: var(--accent); border: 1px solid rgba(76, 201, 240, .5); }
+  .chip.attack { background: rgba(255, 77, 109, .16); color: var(--bad); border: 1px solid rgba(255, 77, 109, .5); }
+  .chip.clean { background: rgba(46, 230, 166, .12); color: var(--good); border: 1px solid rgba(46, 230, 166, .4); }
+  #clock { font-variant-numeric: tabular-nums; color: var(--muted); min-width: 150px; text-align: right; }
+  button { background: rgba(255, 255, 255, .06); color: var(--text); border: 1px solid rgba(255, 255, 255, .12);
+    border-radius: 8px; padding: 4px 9px; cursor: pointer; font: inherit; font-size: 12px; }
+  button:hover { background: rgba(255, 255, 255, .12); }
+  button.on { background: rgba(76, 201, 240, .22); border-color: rgba(76, 201, 240, .6); }
+  #scrub { width: 220px; accent-color: var(--accent); }
+  #why { top: 64px; left: 12px; width: 292px; padding: 14px; max-height: calc(100% - 140px); overflow: auto; }
+  #feed { top: 64px; right: 12px; width: 318px; padding: 14px; max-height: calc(100% - 140px); overflow: auto; }
+  .feat { display: grid; grid-template-columns: 112px 1fr 38px; align-items: center; gap: 8px; margin: 4px 0; font-size: 12px; }
+  .bar { height: 6px; background: rgba(255, 255, 255, .07); border-radius: 4px; overflow: hidden; }
+  .bar > i { display: block; height: 100%; background: linear-gradient(90deg, #4361ee, var(--accent)); border-radius: 4px; }
+  .num { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .arm { border: 1px solid rgba(255, 255, 255, .08); border-radius: 10px; padding: 8px 10px; margin: 6px 0; }
+  .arm.sel { border-color: rgba(76, 201, 240, .75); box-shadow: 0 0 0 1px rgba(76, 201, 240, .35), 0 0 22px rgba(76, 201, 240, .18); }
+  .arm.off { opacity: .45; }
+  .arm .hdr { display: flex; justify-content: space-between; font-weight: 600; font-size: 12px; }
+  .stack { position: relative; height: 8px; background: rgba(255, 255, 255, .06); border-radius: 4px; margin-top: 6px; overflow: hidden; }
+  .stack .mean { position: absolute; top: 0; bottom: 0; left: 0; background: var(--accent); }
+  .stack .bonus { position: absolute; top: 0; bottom: 0; background: repeating-linear-gradient(45deg, rgba(179, 136, 255, .9) 0 4px, rgba(179, 136, 255, .45) 4px 8px); }
+  .arm .sub { color: var(--muted); font-size: 11px; margin-top: 4px; }
+  .note { color: var(--muted); font-size: 11.5px; margin-top: 8px; }
+  .ev { display: grid; grid-template-columns: 52px 1fr; gap: 8px; padding: 6px 0; border-bottom: 1px solid rgba(255, 255, 255, .05);
+    font-size: 12px; animation: fade .35s ease; }
+  .ev .t { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .ev.good b { color: var(--good); } .ev.bad b { color: var(--bad); } .ev.info b { color: var(--accent); }
+  .ev.warn b { color: var(--warn); } .ev.violet b { color: var(--violet); }
+  @keyframes fade { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+  .card { border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; border: 1px solid rgba(255, 255, 255, .1); }
+  .card.good { background: rgba(46, 230, 166, .08); border-color: rgba(46, 230, 166, .35); }
+  .card.bad { background: rgba(255, 77, 109, .08); border-color: rgba(255, 77, 109, .35); }
+  .card.warn { background: rgba(255, 181, 71, .08); border-color: rgba(255, 181, 71, .35); }
+  .card .big { font-size: 22px; font-weight: 800; letter-spacing: .01em; }
+  .kv { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .kv span:last-child { color: var(--text); font-variant-numeric: tabular-nums; }
+  #legend { left: 50%; bottom: 12px; transform: translateX(-50%); display: flex; gap: 14px; padding: 8px 14px;
+    font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+  #legend i { display: inline-block; width: 18px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 5px; }
+  #legend .dot { width: 9px; height: 9px; border-radius: 50%; }
+  .lbl { font-size: 11px; text-align: center; color: var(--text); text-shadow: 0 1px 6px #000, 0 0 2px #000; transform: translateY(-6px); }
+  .lbl b { display: block; font-size: 12.5px; letter-spacing: .02em; }
+  .lbl .role { color: var(--muted); font-size: 10.5px; }
+  .lbl .task { margin-top: 2px; padding: 1px 7px; border-radius: 999px; display: inline-block; font-size: 10.5px; font-weight: 600; }
+  .lbl .task.exec { background: rgba(255, 181, 71, .2); color: var(--warn); }
+  .lbl .task.done { background: rgba(46, 230, 166, .18); color: var(--good); }
+  .lbl .task.fail { background: rgba(255, 77, 109, .2); color: var(--bad); }
+  .lbl.big b { font-size: 13px; color: #fff; }
+  #fallback { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; text-align: center;
+    padding: 40px; color: var(--muted); }
+  @media (max-width: 900px) { #why, #feed { width: 46%; } #legend { display: none; } #scrub { width: 120px; } }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div id="labels"></div>
+
+<div id="topbar" class="panel">
+  <span class="title">SAMG · mission replay</span>
+  <span id="topoChip" class="chip topo"></span>
+  <span id="modeChip" class="chip"></span>
+  <button id="play">❚❚ Pause</button>
+  <button data-speed="0.5">0.5×</button><button data-speed="1" class="on">1×</button>
+  <button data-speed="2">2×</button><button data-speed="4">4×</button>
+  <input id="scrub" type="range" min="0" max="1000" value="0">
+  <span id="clock"></span>
+  <button id="cam">⟲ Orbit</button><button id="top">⊤ Top</button>
+</div>
+
+<div id="why" class="panel">
+  <h3>Why this topology</h3>
+  <div id="ctx"></div>
+  <h3 style="margin-top:14px">Policy scores · mean + exploration bonus</h3>
+  <div id="arms"></div>
+  <div id="whyNote" class="note"></div>
+</div>
+
+<div id="feed" class="panel">
+  <div id="verdict"></div>
+  <h3 id="feedTitle">Live event feed</h3>
+  <div id="events"></div>
+</div>
+
+<div id="legend" class="panel">
+  <span><i style="background:#4cc9f0"></i>hub link</span>
+  <span><i style="background:#b388ff"></i>cell link</span>
+  <span><i style="background:#ffd166"></i>cell bridge</span>
+  <span><i style="background:#2ee6a6"></i>direct link</span>
+  <span><i class="dot" style="background:#ffb547"></i>executing</span>
+  <span><i class="dot" style="background:#2ee6a6"></i>witness-verified</span>
+  <span><i class="dot" style="background:#ff4d6d"></i>failed / disputed</span>
+  <span>● handoff packet · ✉ signed claim → ACP</span>
+</div>
+<div id="fallback">The 3D view needs WebGL and internet access to load three.js from jsDelivr.<br>The tables in Mission Control show the same run.</div>
+
+<script id="scene-data" type="application/json">__SCENE_JSON__</script>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script>
+  setTimeout(() => { if (!window.__samgReady) document.getElementById('fallback').style.display = 'flex'; }, 8000);
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+const S = JSON.parse(document.getElementById('scene-data').textContent);
+const BASE_END = S.meta.end_t;
+const SHOW_MIN = BASE_END * 0.05;           // animations stretched to stay visible (real delays shown in the feed)
+// the timeline also covers the last claim's flight to the ACP and its verdict flash
+const END = Math.max(BASE_END, ...S.claims.map(c => c.t + SHOW_MIN * 1.6)) + 2;
+const PLAY_SECONDS = 45;                    // 1x: whole mission in 45 s
+const COL = { hub: 0x4cc9f0, cell: 0xb388ff, bridge: 0xffd166, direct: 0x2ee6a6,
+              exec: 0xffb547, good: 0x2ee6a6, bad: 0xff4d6d, idle: 0x3a4660, acp: 0x7aa2ff, witness: 0x5ef0ff,
+              gold: 0xffd166 };
+const ROLE_COLORS = [0x4cc9f0, 0xf72585, 0xffd166, 0x2ee6a6, 0xb388ff, 0xff8c42, 0x90be6d, 0x00b4d8];
+
+// ---------- renderer / scene ----------
+const stage = document.getElementById('stage');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+stage.appendChild(renderer.domElement);
+const labelRenderer = new CSS2DRenderer();
+document.getElementById('labels').appendChild(labelRenderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x070b14);
+scene.fog = new THREE.FogExp2(0x070b14, 0.022);
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 400);
+const HOME = new THREE.Vector3(0, 19, 27);
+camera.position.copy(HOME);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.target.set(0, 1.5, 0);
+controls.autoRotate = true; controls.autoRotateSpeed = 0.35;
+controls.maxPolarAngle = Math.PI * 0.49; controls.minDistance = 8; controls.maxDistance = 70;
+
+scene.add(new THREE.HemisphereLight(0x8fb4ff, 0x0b0f1a, 0.65));
+const key = new THREE.DirectionalLight(0xffffff, 1.25); key.position.set(12, 22, 10); scene.add(key);
+const rim = new THREE.PointLight(0x4cc9f0, 40, 60); rim.position.set(0, 9, 4); scene.add(rim);
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.85, 0.55, 0.18);
+composer.addPass(bloom);
+composer.addPass(new OutputPass());
+
+// floor
+const floor = new THREE.Mesh(new THREE.CircleGeometry(30, 96),
+  new THREE.MeshStandardMaterial({ color: 0x0c1322, roughness: 0.92, metalness: 0.15 }));
+floor.rotation.x = -Math.PI / 2; scene.add(floor);
+const grid = new THREE.PolarGridHelper(28, 24, 14, 96, 0x1c2a45, 0x131d33);
+grid.position.y = 0.01; scene.add(grid);
+
+// glow sprite texture
+const glowTex = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d'); const r = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.3, 'rgba(255,255,255,.55)'); r.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = r; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c);
+})();
+const glow = (color, size) => {
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+  s.scale.setScalar(size); return s;
+};
+const label = (html, cls = 'lbl') => { const d = document.createElement('div'); d.className = cls; d.innerHTML = html; return new CSS2DObject(d); };
+
+// ---------- agents ----------
+const roles = [...new Set(S.agents.map(a => a.role))].sort();
+const roleColor = r => ROLE_COLORS[roles.indexOf(r) % ROLE_COLORS.length];
+const AG = {};
+for (const a of S.agents) {
+  const g = new THREE.Group(); g.position.set(a.x, 0, a.z);
+  const color = a.lead ? 0xdfe7ff : roleColor(a.role);
+  if (a.lead) {
+    const tower = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.4, 3.2, 6),
+      new THREE.MeshStandardMaterial({ color: 0x1a2440, metalness: 0.7, roughness: 0.3, emissive: 0x0a1a3a }));
+    tower.position.y = 1.6; g.add(tower);
+    const crown = new THREE.Mesh(new THREE.TorusGeometry(1.35, 0.06, 8, 48), new THREE.MeshBasicMaterial({ color: COL.hub }));
+    crown.rotation.x = Math.PI / 2; crown.position.y = 3.3; g.add(crown); g.userData.crown = crown;
+  } else {
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.95, 0.35, 32),
+      new THREE.MeshStandardMaterial({ color: 0x1b2236, metalness: 0.8, roughness: 0.35 }));
+    base.position.y = 0.2; g.add(base);
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.25, 1.05, 1.05),
+      new THREE.MeshStandardMaterial({ color, metalness: 0.35, roughness: 0.4, emissive: color, emissiveIntensity: 0.12 }));
+    body.position.y = 0.95; g.add(body);
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.42, 0.7),
+      new THREE.MeshStandardMaterial({ color: 0x111827, metalness: 0.6, roughness: 0.3 }));
+    head.position.y = 1.7; g.add(head);
+    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.08, 0.02), new THREE.MeshBasicMaterial({ color }));
+    eye.position.set(0, 1.72, 0.36); g.add(eye);
+    g.userData.body = body;
+  }
+  if (a.coordinator && !a.lead) {
+    const halo = new THREE.Mesh(new THREE.TorusGeometry(0.75, 0.04, 8, 40), new THREE.MeshBasicMaterial({ color: COL.gold }));
+    halo.rotation.x = Math.PI / 2; halo.position.y = 2.25; g.add(halo); g.userData.halo = halo;
+  }
+  // status ring on the floor (progress arc)
+  const ringBg = new THREE.Mesh(new THREE.RingGeometry(1.25, 1.42, 64),
+    new THREE.MeshBasicMaterial({ color: COL.idle, transparent: true, opacity: 0.55, side: THREE.DoubleSide }));
+  ringBg.rotation.x = -Math.PI / 2; ringBg.position.y = 0.03; g.add(ringBg);
+  const ring = new THREE.Mesh(new THREE.RingGeometry(1.25, 1.42, 64, 1, 0, 0.001),
+    new THREE.MeshBasicMaterial({ color: COL.exec, side: THREE.DoubleSide }));
+  ring.rotation.x = -Math.PI / 2; ring.position.y = 0.04; g.add(ring);
+  const aura = glow(color, a.lead ? 6 : 3.2); aura.position.y = a.lead ? 2.0 : 1.0; aura.material.opacity = 0.18; g.add(aura);
+  const lab = label(`<b>${a.id}</b><span class="role">${a.lead ? 'mission lead' + (a.hub ? ' · hub' : '') : a.role}${a.coordinator ? ' · cell lead' : ''}</span><div class="task" style="display:none"></div>`,
+    a.lead ? 'lbl big' : 'lbl');
+  lab.position.set(0, a.lead ? 4.1 : a.coordinator ? 3.7 : 2.75, 0); g.add(lab);
+  scene.add(g);
+  AG[a.id] = { def: a, group: g, ring, ringBg, aura, label: lab, color, pos: new THREE.Vector3(a.x, 0, a.z) };
+}
+
+// ---------- links (arcs) ----------
+const arcCurve = (p, q, h = 1.6) => {
+  const a = new THREE.Vector3(p.x, 1.15, p.z), b = new THREE.Vector3(q.x, 1.15, q.z);
+  const mid = a.clone().add(b).multiplyScalar(0.5); mid.y += h + a.distanceTo(b) * 0.06;
+  return new THREE.QuadraticBezierCurve3(a, mid, b);
+};
+const LINKS = [];
+const linkKey = (a, b) => a < b ? `${a}|${b}` : `${b}|${a}`;
+const CURVES = {};
+for (const l of S.links) {
+  const A = AG[l.a], B = AG[l.b]; if (!A || !B) continue;
+  const curve = arcCurve(A.pos, B.pos);
+  CURVES[linkKey(l.a, l.b)] = { curve, from: l.a };
+  const mat = new THREE.MeshBasicMaterial({ color: COL[l.kind] ?? COL.direct, transparent: true, opacity: 0.55 });
+  const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 48, 0.045, 8, false), mat);
+  scene.add(tube); LINKS.push({ tube, mat, phase: Math.random() * 6 });
+}
+const segCurve = (a, b) => CURVES[linkKey(a, b)] ?? { curve: arcCurve(AG[a].pos, AG[b].pos), from: a };
+
+// ---------- ACP and witness ----------
+const ACP_POS = new THREE.Vector3(-15, 5.2, -12);   // its own pylon, mirroring the witness
+const acp = new THREE.Mesh(new THREE.OctahedronGeometry(0.9, 0),
+  new THREE.MeshStandardMaterial({ color: COL.acp, emissive: COL.acp, emissiveIntensity: 0.6, metalness: 0.4, roughness: 0.2, flatShading: true }));
+acp.position.copy(ACP_POS); scene.add(acp);
+const acpShell = new THREE.Mesh(new THREE.IcosahedronGeometry(1.45, 1),
+  new THREE.MeshBasicMaterial({ color: COL.acp, wireframe: true, transparent: true, opacity: 0.25 }));
+acpShell.position.copy(ACP_POS); scene.add(acpShell);
+const acpGlow = glow(COL.acp, 6); acpGlow.position.copy(ACP_POS); scene.add(acpGlow);
+const acpPole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.35, 4.2, 12), new THREE.MeshStandardMaterial({ color: 0x2b3550, metalness: 0.8 }));
+acpPole.position.set(ACP_POS.x, 2.1, ACP_POS.z); scene.add(acpPole);
+const acpLab = label('<b>ACP</b><span class="role">assurance control plane</span>', 'lbl big');
+acpLab.position.copy(ACP_POS).add(new THREE.Vector3(0, 1.9, 0)); scene.add(acpLab);
+
+const W_POS = new THREE.Vector3(15, 0, -12);
+const wPole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.12, 4.2, 12), new THREE.MeshStandardMaterial({ color: 0x2b3550, metalness: 0.8 }));
+wPole.position.set(W_POS.x, 2.1, W_POS.z); scene.add(wPole);
+const wEye = new THREE.Mesh(new THREE.SphereGeometry(0.55, 24, 16), new THREE.MeshStandardMaterial({ color: COL.witness, emissive: COL.witness, emissiveIntensity: 0.8 }));
+wEye.position.set(W_POS.x, 4.4, W_POS.z); scene.add(wEye);
+const wGlow = glow(COL.witness, 3.5); wGlow.position.copy(wEye.position); scene.add(wGlow);
+const wLab = label('<b>Witness</b><span class="role">independent sensors · own key</span>', 'lbl');
+wLab.position.set(W_POS.x, 5.6, W_POS.z); scene.add(wLab);
+
+// pools of transient objects
+const pool = (n, make) => Array.from({ length: n }, make);
+const packets = pool(16, () => { const m = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 12), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+  const gl = glow(0xffffff, 1.6); m.add(gl); m.visible = false; scene.add(m); return m; });
+const envelopes = pool(24, () => { const m = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.28, 0.06), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+  const gl = glow(0xffffff, 1.2); m.add(gl); m.visible = false; scene.add(m); return m; });
+const beams = pool(10, () => { const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+  const l = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: COL.witness, transparent: true, opacity: 0.8 })); l.visible = false; scene.add(l); return l; });
+
+// ---------- derived timelines ----------
+const taskById = Object.fromEntries(S.tasks.map(t => [t.id, t]));
+const transByTask = {};
+for (const tr of S.transitions) (transByTask[tr.task] ??= []).push(tr);
+for (const k in transByTask) transByTask[k].sort((a, b) => a.t - b.t);
+const stateAt = (taskId, t) => { let s = 'OPEN'; for (const tr of transByTask[taskId] ?? []) { if (tr.t <= t) s = tr.to; else break; } return s; };
+const claimArrive = c => c.t + SHOW_MIN * 0.8;
+
+const EVENTS = [];
+EVENTS.push({ t: 0, cls: 'info', html: `<b>Plan dispatched</b> · ${S.tasks.length} tasks · ${S.meta.solver ?? '-'} · topology ${S.meta.topology}` });
+for (const tr of S.transitions) {
+  const task = taskById[tr.task]; const nm = task ? task.name : tr.task;
+  if (tr.to === 'EXECUTING') EVENTS.push({ t: tr.t, cls: 'warn', html: `<b>${tr.agent} started ${tr.task}</b> · ${nm}` });
+  else if (tr.to === 'VERIFIED_COMPLETE') EVENTS.push({ t: tr.t, cls: 'good', html: `<b>Witness verified ${tr.task}</b> complete (${tr.agent})` });
+  else if (tr.to === 'FAILED') EVENTS.push({ t: tr.t, cls: 'bad', html: `<b>Witness: ${tr.task} FAILED</b> (${tr.agent})` });
+}
+for (const h of S.handoffs)
+  EVENTS.push({ t: h.depart, cls: 'violet', html: `<b>Handoff ${h.from_task}→${h.to_task}</b> · ${h.path.join(' → ')} · ${h.hops} hops · cost ${h.cost} · +${(h.arrive - h.depart).toFixed(1)} min` });
+for (const c of S.claims) {
+  const ok = c.evidence === 'CORROBORATED';
+  const what = c.type === 'REWARD_CLAIM' ? `claims reward ${c.claimed_reward}` : c.type === 'TASK_STARTED' ? `claims started ${c.task}` : `claims ${c.task} complete`;
+  EVENTS.push({ t: claimArrive(c), cls: ok ? 'good' : 'bad', claim: true,
+    html: `<b>${c.agent} ${what}</b> · signature ✓ → ${c.evidence}${c.reasons.length ? ' <span style="color:var(--muted)">(' + c.reasons.join(', ') + ')</span>' : ''}${c.false ? ' · <b>false claim</b>' : ''}` });
+}
+EVENTS.sort((a, b) => a.t - b.t);
+const VERDICT_T = Math.max(...S.claims.map(claimArrive), ...S.transitions.map(x => x.t), 0) + 1;
+
+// ---------- side panels ----------
+document.getElementById('topoChip').textContent = S.meta.topology ?? 'NO TOPOLOGY';
+const modeChip = document.getElementById('modeChip');
+modeChip.textContent = S.meta.attacked ? `ATTACK · ${S.attack?.agent ?? ''} signs false claims` : 'CLEAN RUN';
+modeChip.className = 'chip ' + (S.meta.attacked ? 'attack' : 'clean');
+
+const fixedPolicy = /^P[01]/.test(S.meta.policy);
+const ctxNames = { dependency_density: 'Task dependency', capability_heterogeneity: 'Skill diversity',
+  resource_scarcity: 'Resource scarcity', agent_availability: 'Agent availability' };
+document.getElementById('ctx').innerHTML = S.context.map(f =>
+  `<div class="feat"><span>${ctxNames[f.name] ?? f.name}</span><div class="bar"><i style="width:${(f.value * 100).toFixed(1)}%"></i></div><span class="num">${f.value.toFixed(2)}</span></div>`).join('');
+const maxScore = Math.max(...S.arms.map(a => a.score ?? 0), 0.01);
+document.getElementById('arms').innerHTML = S.arms.map(a => {
+  const m = Math.max(a.mean ?? 0, 0), b = Math.max(a.bonus ?? 0, 0);
+  return `<div class="arm ${a.selected ? 'sel' : ''} ${a.offered ? '' : 'off'}">
+    <div class="hdr"><span>${a.topology.replace('_', ' ')}</span><span>${a.selected ? '◆ chosen' : !a.offered ? 'not eligible' : fixedPolicy ? '' : (a.score ?? 0).toFixed(3)}</span></div>
+    <div class="stack"><div class="mean" style="width:${(m / maxScore * 100).toFixed(1)}%"></div><div class="bonus" style="left:${(m / maxScore * 100).toFixed(1)}%;width:${(b / maxScore * 100).toFixed(1)}%"></div></div>
+    <div class="sub">${fixedPolicy ? (a.selected ? 'set by operator' : 'not used by this baseline') : `mean ${(a.mean ?? 0).toFixed(3)} + bonus ${(a.bonus ?? 0).toFixed(3)}`}${a.reasons.length ? ' · ' + a.reasons.join(', ') : ''}</div></div>`;
+}).join('');
+document.getElementById('whyNote').innerHTML = fixedPolicy
+  ? `Fixed baseline (${S.meta.policy}): this topology was set by the operator, not learned. Compare its reward with the adaptive LinUCB run.`
+  : S.meta.warmup
+  ? 'Cold start: the learner is in its seeded warm-up, trying each topology once before trusting its estimates.'
+  : S.meta.experience ? `Learned from ${S.meta.experience} verified missions. Chosen = highest score: <b style="color:var(--accent)">mean</b> is the reward predicted for <i>this</i> mission's features; the <b style="color:var(--violet)">bonus</b> is extra credit for uncertainty (exploration).`
+  : 'Chosen = highest score. <b style="color:var(--accent)">Mean</b> is the reward predicted for this mission from past verified missions; the <b style="color:var(--violet)">bonus</b> rewards exploring topologies it is unsure about.';
+
+const evBox = document.getElementById('events'), vBox = document.getElementById('verdict');
+let shownEvents = -1, shownVerdict = null;
+function renderFeed(t) {
+  const visible = EVENTS.filter(e => e.t <= t);
+  if (visible.length !== shownEvents) {
+    shownEvents = visible.length;
+    evBox.innerHTML = visible.slice(t >= VERDICT_T ? -4 : -9).reverse().map(e => `<div class="ev ${e.cls}"><span class="t">${e.t.toFixed(1)}m</span><span>${e.html}</span></div>`).join('')
+      || '<div class="note">Waiting for the first task…</div>';
+  }
+  const show = t >= VERDICT_T;
+  if (show === shownVerdict) return; shownVerdict = show; shownEvents = -1;
+  if (!show) { vBox.innerHTML = ''; return; }
+  const ep = S.episode, L = S.learning;
+  const disputed = S.claims.filter(c => c.evidence === 'DISPUTED').length;
+  let html = '';
+  if (ep) html += `<div class="card ${ep.status === 'ADMITTED' ? 'good' : 'warn'}"><h3>ACP episode verdict</h3><div class="big">${ep.status}</div>
+    <div class="note">${ep.reasons.join(' · ')}</div>
+    <div class="kv"><span>claims corroborated</span><span>${S.claims.filter(c => c.evidence === 'CORROBORATED').length}/${S.claims.length}</span></div>
+    <div class="kv"><span>claims disputed (quarantined)</span><span style="color:${disputed ? 'var(--bad)' : 'inherit'}">${disputed}</span></div></div>`;
+  if (S.reward) html += `<div class="card"><h3>Reward · recomputed by ACP</h3><div class="big">${S.reward.value.toFixed(4)}</div>
+    ${Object.entries(S.reward.contributions).map(([k, v]) => `<div class="kv"><span>${k}</span><span>${v.toFixed(4)}</span></div>`).join('')}
+    ${S.claimed_reward != null ? `<div class="kv"><span>agent-claimed reward</span><span style="color:${Math.abs(S.claimed_reward - S.reward.value) > 1e-3 ? 'var(--bad)' : 'inherit'}">${S.claimed_reward.toFixed(4)} · not used</span></div>` : ''}</div>`;
+  html += `<div class="card ${L.applied ? 'good' : 'warn'}"><h3>Learner update</h3>${L.applied
+    ? `<div class="big">${L.topology} ← ${L.reward.toFixed(4)}</div><div class="note">source ${L.source}: the learner only ever sees the ACP's number</div>`
+    : `<div class="big">REFUSED</div><div class="note">${L.rejection ?? '-'} · policy state unchanged</div>`}</div>`;
+  vBox.innerHTML = html;
+}
+
+// ---------- per-frame state (pure function of sim time t) ----------
+const tmpV = new THREE.Vector3();
+function update(t, clock) {
+  // agents: status ring, task label
+  for (const id in AG) {
+    const A = AG[id];
+    const mine = S.tasks.filter(x => x.agent === id);
+    let active = null, last = null, lastT = -1;
+    for (const task of mine) {
+      const st = stateAt(task.id, t);
+      if (st === 'EXECUTING') active = task;
+      const tr = (transByTask[task.id] ?? []).filter(x => x.t <= t && (x.to === 'VERIFIED_COMPLETE' || x.to === 'FAILED'));
+      if (tr.length && tr[tr.length - 1].t > lastT) { lastT = tr[tr.length - 1].t; last = { task, st: tr[tr.length - 1].to }; }
+    }
+    const el = A.label.element.querySelector('.task');
+    let color = COL.idle, frac = 0;
+    if (active) {
+      const start = active.start ?? 0;
+      const failT = (transByTask[active.id] ?? []).find(x => x.to === 'FAILED')?.t;
+      const end = active.end ?? failT ?? active.plan_end ?? start + 1;
+      frac = Math.min(Math.max((t - start) / Math.max(end - start, 0.01), 0), 1);
+      color = COL.exec; el.style.display = ''; el.className = 'task exec'; el.textContent = `${active.id} · ${active.name}`;
+    } else if (last && t - lastT < END * 0.08) {
+      frac = 1; color = last.st === 'FAILED' ? COL.bad : COL.good;
+      el.style.display = ''; el.className = 'task ' + (last.st === 'FAILED' ? 'fail' : 'done');
+      el.textContent = `${last.task.id} ${last.st === 'FAILED' ? 'failed' : 'verified'}`;
+    } else el.style.display = 'none';
+    A.ring.geometry.dispose();
+    A.ring.geometry = new THREE.RingGeometry(1.25, 1.42, 64, 1, Math.PI / 2, Math.max(frac, 0.001) * Math.PI * 2);
+    A.ring.material.color.setHex(color);
+    A.aura.material.opacity = active ? 0.32 + 0.12 * Math.sin(clock * 5) : 0.16;
+    if (A.group.userData.body) A.group.userData.body.position.y = 0.95 + (active ? 0.06 * Math.sin(clock * 8) : 0);
+    if (A.group.userData.halo) A.group.userData.halo.rotation.z = clock * 1.2;
+    if (A.group.userData.crown) { A.group.userData.crown.rotation.z = clock * 0.8; }
+  }
+  // links shimmer
+  for (const L of LINKS) L.mat.opacity = 0.38 + 0.2 * (0.5 + 0.5 * Math.sin(clock * 2 + L.phase));
+
+  // handoff packets ride the topology links hop by hop
+  let pi = 0;
+  for (const h of S.handoffs) {
+    const dur = Math.max(h.arrive - h.depart, SHOW_MIN);
+    if (t < h.depart || t > h.depart + dur || pi >= packets.length) continue;
+    const f = (t - h.depart) / dur, segs = h.path.length - 1;
+    const s = Math.min(Math.floor(f * segs), segs - 1), lf = f * segs - s;
+    const p = packets[pi++]; p.visible = true;
+    const seg = segCurve(h.path[s], h.path[s + 1]);
+    seg.curve.getPoint(seg.from === h.path[s] ? lf : 1 - lf, tmpV);  // travel in the hop's direction
+    p.position.copy(tmpV);
+    p.material.color.setHex(COL.cell); p.children[0].material.color.setHex(COL.cell);
+  }
+  for (; pi < packets.length; pi++) packets[pi].visible = false;
+
+  // signed claims fly agent -> ACP; colour reveals the ACP verdict on arrival
+  let ei = 0, flash = null;
+  for (const c of S.claims) {
+    const travel = SHOW_MIN * 0.8;
+    if (t >= c.t && t <= c.t + travel && ei < envelopes.length) {
+      const f = (t - c.t) / travel, A = AG[c.agent]; if (!A) continue;
+      const e = envelopes[ei++]; e.visible = true;
+      const from = new THREE.Vector3(A.pos.x, 2.2, A.pos.z);
+      e.position.lerpVectors(from, ACP_POS, f); e.position.y += Math.sin(f * Math.PI) * 2.2;
+      e.rotation.y = clock * 3;
+      const col = f > 0.85 ? (c.evidence === 'CORROBORATED' ? COL.good : COL.bad) : 0xffffff;
+      e.material.color.setHex(col); e.children[0].material.color.setHex(col);
+    }
+    if (t > c.t + travel && t < c.t + travel + SHOW_MIN * 0.6 && c.evidence !== 'CORROBORATED') flash = COL.bad;
+    else if (!flash && t > c.t + travel && t < c.t + travel + SHOW_MIN * 0.15) flash = COL.good;
+  }
+  for (; ei < envelopes.length; ei++) envelopes[ei].visible = false;
+  const acpCol = flash ?? COL.acp;
+  acp.material.color.setHex(acpCol); acp.material.emissive.setHex(acpCol); acpGlow.material.color.setHex(acpCol);
+  acpShell.material.color.setHex(acpCol);
+  acp.rotation.y = clock * 0.9; acpShell.rotation.y = -clock * 0.4; acpShell.rotation.x = clock * 0.2;
+  acpGlow.scale.setScalar(flash ? 8 + Math.sin(clock * 12) : 6);
+
+  // witness observes task transitions
+  let bi = 0;
+  for (const w of S.witness) {
+    if (w.to === 'ASSIGNED' || t < w.t || t > w.t + SHOW_MIN * 0.35 || bi >= beams.length) continue;
+    const task = taskById[w.task]; const A = task && AG[task.agent]; if (!A) continue;
+    const b = beams[bi++]; b.visible = true;
+    const pos = b.geometry.attributes.position;
+    pos.setXYZ(0, wEye.position.x, wEye.position.y, wEye.position.z); pos.setXYZ(1, A.pos.x, 1.2, A.pos.z); pos.needsUpdate = true;
+    b.material.color.setHex(w.to === 'FAILED' ? COL.bad : COL.witness);
+    b.material.opacity = 1 - (t - w.t) / (SHOW_MIN * 0.35);
+  }
+  for (; bi < beams.length; bi++) beams[bi].visible = false;
+  wGlow.scale.setScalar(bi ? 4.5 + Math.sin(clock * 10) * 0.5 : 3.5);
+
+  renderFeed(t);
+}
+
+// ---------- controls ----------
+let t = 0, speed = 1, playing = true, last = performance.now();
+const hashT = /t=([\d.]+)/.exec(location.hash);   // deep link, e.g. replay.html#t=120 (paused)
+if (hashT) { t = Math.min(+hashT[1], END); playing = false; }
+const scrub = document.getElementById('scrub'), clockEl = document.getElementById('clock'), playBtn = document.getElementById('play');
+if (!playing) playBtn.textContent = '▶ Play';
+playBtn.onclick = () => { playing = !playing; if (playing && t >= END) t = 0; playBtn.textContent = playing ? '❚❚ Pause' : '▶ Play'; };
+document.querySelectorAll('[data-speed]').forEach(b => b.onclick = () => {
+  speed = +b.dataset.speed; document.querySelectorAll('[data-speed]').forEach(x => x.classList.toggle('on', x === b)); });
+scrub.oninput = () => { t = scrub.value / 1000 * END; };
+const camBtn = document.getElementById('cam');
+camBtn.classList.add('on');
+camBtn.onclick = () => { controls.autoRotate = !controls.autoRotate; camBtn.classList.toggle('on', controls.autoRotate); };
+document.getElementById('top').onclick = () => { camera.position.set(0.01, 42, 0.01); controls.target.set(0, 0, 0); };
+
+function resize() {
+  const w = innerWidth, h = innerHeight;
+  renderer.setSize(w, h); labelRenderer.setSize(w, h); composer.setSize(w, h); bloom.setSize(w, h);
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize); resize();
+
+function frame(now) {
+  const dt = Math.min(Math.max((now - last) / 1000, 0), 0.1); last = now;
+  if (playing) { t += dt * speed * END / PLAY_SECONDS; if (t >= END) { t = END; playing = false; playBtn.textContent = '↺ Replay'; } }
+  scrub.value = Math.round(t / END * 1000);
+  clockEl.textContent = `t = ${t.toFixed(1)} / ${END.toFixed(0)} sim-min`;
+  update(t, now / 1000);
+  controls.update();
+  composer.render(); labelRenderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+window.__samgReady = true;
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

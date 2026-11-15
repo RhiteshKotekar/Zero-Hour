@@ -24,6 +24,16 @@ Execution model (all randomness from ``np.random.default_rng(seed)``):
   failure for task IDs in ``forced_failures`` (fault injection for tests and
   attack scenarios). A failed task ends ``EXECUTING -> FAILED``; its
   dependents become ``BLOCKED``.
+* Optional ``task_delays_ms``: extra simulated ms added to a task's actual
+  duration (e.g. physical travel overruns and aisle-congestion waits measured
+  by ``samg.warehouse``). Default empty, so existing runs are unchanged.
+* Optional ``agent_breakdowns`` ``{agent_id: task_id}``: the agent breaks down halfway
+  through that task (``EXECUTING -> FAILED`` at the midpoint); every later task of the
+  agent is ``BLOCKED`` (``AGENT_DOWN``). Default empty.
+* Optional ``agent_down_at_ms`` ``{agent_id: ms}``: the agent goes down at that simulated
+  time (live fault injection). A task it is executing then is ``EXECUTING -> FAILED`` at
+  that time; tasks it would start at or after it are ``BLOCKED`` (``AGENT_DOWN``); tasks it
+  finished before are unaffected. Default empty, so existing runs are unchanged.
 * A completed task ends ``EXECUTING -> REPORTED_COMPLETE``: the simulator only
   knows the work finished. ``VERIFIED_COMPLETE`` is set by the independent
   witness (``samg.witness``), never by the simulator or an agent.
@@ -35,7 +45,7 @@ reproduce the ground-truth metrics exactly.
 
 from __future__ import annotations
 
-from collections.abc import Collection
+from collections.abc import Collection, Mapping
 
 import numpy as np
 
@@ -68,6 +78,9 @@ def run(
     duration_jitter: float = DEFAULT_DURATION_JITTER,
     task_failure_probability: float = 0.0,
     forced_failures: Collection[str] = (),
+    task_delays_ms: Mapping[str, float] | None = None,
+    agent_breakdowns: Mapping[str, str] | None = None,
+    agent_down_at_ms: Mapping[str, float] | None = None,
 ) -> ExecutionTrace:
     """Execute ``plan`` once under ``seed`` and return the ground-truth trace.
 
@@ -111,6 +124,9 @@ def run(
     outcomes: dict[str, TaskOutcome] = {}
     comm_failures = 0
     forced = set(forced_failures)
+    breakdown_task = {task_id: agent for agent, task_id in (agent_breakdowns or {}).items()}
+    agent_down: dict[str, int] = {}
+    scheduled_down = {agent: int(round(ms)) for agent, ms in (agent_down_at_ms or {}).items()}
 
     for a in order:
         task = mission.task(a.task_id)
@@ -144,6 +160,10 @@ def run(
                 reason = f"MESSAGE_LOST:{dep}"
             ready = max(ready, arrival)
 
+        if a.agent_id in agent_down:
+            blocked_at = max(blocked_at or 0, agent_down[a.agent_id])
+            reason = f"AGENT_DOWN:{a.agent_id}"
+
         if blocked_at is not None:
             emit(a.task_id, a.agent_id, S.ASSIGNED, S.BLOCKED, blocked_at)
             failed_at[a.task_id] = blocked_at
@@ -155,10 +175,32 @@ def run(
         start = max(agent_free.get(a.agent_id, 0), ready)
         nominal = a.end - a.start if a.end > a.start else task.duration_ms
         duration = int(round(nominal * (1.0 - duration_jitter + 2.0 * duration_jitter * jitter_u)))
+        duration += int(round(max((task_delays_ms or {}).get(a.task_id, 0.0), 0.0)))
         end = start + max(duration, 1)
+        down_at = scheduled_down.get(a.agent_id)
+        if down_at is not None and start >= down_at:
+            agent_down[a.agent_id] = down_at
+            emit(a.task_id, a.agent_id, S.ASSIGNED, S.BLOCKED, down_at)
+            failed_at[a.task_id] = down_at
+            outcomes[a.task_id] = TaskOutcome(task_id=a.task_id, agent_id=a.agent_id, completed=False,
+                                              failure_reason=f"AGENT_DOWN:{a.agent_id}")
+            continue
         agent_free[a.agent_id] = end
         emit(a.task_id, a.agent_id, S.ASSIGNED, S.EXECUTING, start)
-        if a.task_id in forced or fail_u < task_failure_probability:
+        if down_at is not None and start < down_at < end:
+            agent_down[a.agent_id] = down_at
+            emit(a.task_id, a.agent_id, S.EXECUTING, S.FAILED, down_at)
+            failed_at[a.task_id] = down_at
+            outcomes[a.task_id] = TaskOutcome(task_id=a.task_id, agent_id=a.agent_id, completed=False,
+                                              start=float(start), end=float(down_at), failure_reason="AGENT_BREAKDOWN")
+        elif breakdown_task.get(a.task_id) == a.agent_id:
+            down = start + max(duration // 2, 1)
+            agent_down[a.agent_id] = down
+            emit(a.task_id, a.agent_id, S.EXECUTING, S.FAILED, down)
+            failed_at[a.task_id] = down
+            outcomes[a.task_id] = TaskOutcome(task_id=a.task_id, agent_id=a.agent_id, completed=False,
+                                              start=float(start), end=float(down), failure_reason="AGENT_BREAKDOWN")
+        elif a.task_id in forced or fail_u < task_failure_probability:
             emit(a.task_id, a.agent_id, S.EXECUTING, S.FAILED, end)
             failed_at[a.task_id] = end
             outcomes[a.task_id] = TaskOutcome(task_id=a.task_id, agent_id=a.agent_id, completed=False,

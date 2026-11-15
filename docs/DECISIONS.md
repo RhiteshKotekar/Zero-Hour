@@ -303,3 +303,15 @@ Extends D004. Details are in [SECURITY_MODEL.md](SECURITY_MODEL.md#offline-train
 **Decision:** The §12.9 ablations rerun the full protocol on design seeds ≥ 60 000 with `alpha` kept frozen and P1 re-selected on each setting's own training data. The held-out test split is never used for ablations.
 
 **Why:** Keeps sensitivity analysis from leaking into, or being tuned on, the reported test set.
+
+## D038 — Warehouse digital twin and two optional simulator inputs (2026-11-15)
+
+**Decision:** Add `samg.twin` (layout, A* routing, inventory, orders, task generation, aisle locks, physical replay, adapter) and a "Warehouse Digital Twin" dashboard tab. Orders become SAMG missions; topology selection, CP-SAT allocation, execution, witness, ACP and guarded learning are SAMG's unchanged public functions. `simulation.engine.run` gains two optional, default-empty inputs passed through `orchestration.execute_mission` / `run_single_mission`: `task_delays_ms` (physical travel overruns and aisle-congestion waits measured by the warehouse replay, fed back as task delays) and `agent_breakdowns` (a robot breaks down halfway through a task; its later tasks are `BLOCKED: AGENT_DOWN`). `run_single_mission` also accepts a precomputed `feasible` result to avoid solving twice. Replanning after failures runs the not-witness-verified tasks as a new SAMG mission with failed robots unavailable.
+
+**Why:** The demo needs congestion and robot failures to affect SAMG's timing, reward and witness evidence rather than being drawn on top of it. Defaults keep every existing run byte-identical (tested). Config lives in `config/twin.yaml` (`twin-v1`).
+
+## D039 — Next.js control center over a live SAMG twin server (2026-11-15)
+
+**Decision:** The primary judge-facing UI is a Next.js app (`web/`) with a React Three Fiber 3D warehouse, fed by a FastAPI server (`samg.api`) that runs live `samg.twin` sessions: a server-side simulation clock, order arrivals, SAMG planning waves, time-anchored failure injections and WebSocket state streaming. The Streamlit dashboard stays as the research/secondary UI. `samg.twin` (this branch) and `samg.warehouse` (teammate, Streamlit views) coexist; consolidation is a follow-up. See `docs/CONTROL_CENTER_PLAN.md`.
+
+**Why:** A browser-native 3D control center needs a live state stream and two-way controls that Streamlit's rerun model cannot provide; keeping SAMG decisions in Python keeps the frontend a digital twin rather than a second decision engine.

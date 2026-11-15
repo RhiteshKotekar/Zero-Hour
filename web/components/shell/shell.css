@@ -1,0 +1,898 @@
+/* Control-center panel styles - Google Material 3 Design
+   Light industrial control-room tokens, keeping semantic colors identical while upgrading
+   visual hierarchy, elevation, padding, typography, and card containers. */
+
+.zh-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.04), 0 1px 2px -1px rgba(15, 23, 42, 0.03);
+}
+.zh-ch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line);
+  flex: none;
+  min-width: 0;
+  background: #ffffff;
+}
+.zh-ch h2 {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 800;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.zh-ch .sub {
+  color: var(--muted);
+  font-size: 11.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.zh-ch .r {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex: none;
+}
+.zh-scroll {
+  overflow: auto;
+  min-height: 0;
+}
+.zh-empty {
+  padding: 18px 16px;
+  color: var(--muted);
+  font-size: 12.5px;
+  text-align: center;
+}
+
+/* Material 3 Header Chips */
+.zh-hs {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 4px 12px;
+  background: var(--panel2);
+  min-width: 90px;
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02);
+  transition: all 0.15s ease;
+}
+.zh-hs:hover {
+  background: #ffffff;
+  border-color: var(--line2);
+}
+.zh-hs label {
+  display: block;
+  font-size: 8.5px;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  line-height: 1.2;
+}
+.zh-hs b {
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  color: var(--ink);
+}
+.zh-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: 1px;
+}
+
+/* Material 3 Timeline */
+.zh-tl {
+  flex: 1;
+  position: relative;
+  height: 32px;
+  margin: 0 8px;
+  cursor: pointer;
+  min-width: 160px;
+  touch-action: none;
+}
+.zh-tl .track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 13px;
+  height: 6px;
+  border-radius: 9999px;
+  background: #e2e8f0;
+}
+.zh-tl .fill {
+  position: absolute;
+  left: 0;
+  top: 13px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--ink);
+}
+.zh-tl .band {
+  position: absolute;
+  top: 2px;
+  height: 26px;
+  border-radius: 8px;
+  border: 1px dashed var(--line2);
+  font: 700 9.5px var(--font-mono);
+  color: var(--muted);
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  overflow: hidden;
+  pointer-events: none;
+  background: rgba(255, 255, 255, 0.7);
+}
+.zh-tl .band.preview {
+  border-style: dotted;
+  border-color: #9bb8f5;
+  color: var(--accent);
+  background: var(--accent-bg);
+}
+.zh-tl .mk {
+  position: absolute;
+  top: 9px;
+  width: 4px;
+  height: 14px;
+  border-radius: 9999px;
+  transform: translateX(-2px);
+  z-index: 2;
+}
+.zh-tl .head {
+  position: absolute;
+  top: 7px;
+  width: 16px;
+  height: 18px;
+  border-radius: 6px;
+  background: var(--ink);
+  transform: translateX(-8px);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.35);
+  border: 2px solid #ffffff;
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* Material 3 Stepper / Pipeline Strip */
+.zh-st {
+  flex: 1;
+  position: relative;
+  padding: 6px 12px;
+  border-radius: 12px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  min-width: 0;
+  transition: all 0.25s cubic-bezier(0.2, 0, 0, 1);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02);
+}
+.zh-st label {
+  display: block;
+  font-size: 8.5px;
+  letter-spacing: 0.1em;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.zh-st b {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+.zh-st.done {
+  background: #ffffff;
+  border-color: #cbd5e1;
+}
+.zh-st.done label {
+  color: var(--muted);
+}
+.zh-st.done b {
+  color: var(--ink);
+}
+.zh-st.active {
+  background: var(--ink);
+  border-color: var(--ink);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.18);
+  transform: translateY(-1px);
+}
+.zh-st.active label {
+  color: #94a3b8;
+}
+.zh-st.active b {
+  color: #ffffff;
+}
+.zh-st.alert.active {
+  background: var(--bad);
+  border-color: var(--bad);
+  box-shadow: 0 4px 12px rgba(217, 45, 45, 0.25);
+}
+.zh-st.sec.active {
+  background: var(--sec);
+  border-color: var(--sec);
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.25);
+}
+
+/* Material 3 Stat Tiles / KPIs */
+.zh-kpi {
+  padding: 8px 14px 9px;
+  border-right: 1px solid var(--line);
+  min-width: 0;
+  transition: background 0.15s ease;
+}
+.zh-kpi:hover {
+  background: #f8fafc;
+}
+.zh-kpi:last-child {
+  border-right: 0;
+}
+.zh-kpi b {
+  display: block;
+  font: 700 18px var(--font-mono);
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.zh-kpi label {
+  display: block;
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 700;
+  white-space: nowrap;
+  margin-top: 1px;
+}
+.zh-kpi small {
+  display: block;
+  color: var(--faint);
+  font-size: 10.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+/* Material 3 Mission Counters */
+.zh-counters {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel2);
+  flex: none;
+}
+.zh-counters div {
+  padding: 6px 10px;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  min-width: 0;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02);
+  text-align: center;
+}
+.zh-counters b {
+  display: block;
+  font: 700 15px var(--font-mono);
+  white-space: nowrap;
+  color: var(--ink);
+}
+.zh-counters label {
+  display: block;
+  font-size: 8.5px;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  white-space: nowrap;
+  margin-top: 1px;
+}
+
+/* Material 3 Order Cards */
+.zh-order {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  cursor: pointer;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02);
+  transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
+  overflow: hidden;
+}
+.zh-order:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+  transform: translateY(-1px);
+}
+.zh-order.sel {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-bg), 0 4px 12px rgba(37, 99, 235, 0.15);
+}
+.zh-order .row {
+  display: grid;
+  grid-template-columns: 62px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 12px;
+}
+.zh-pri {
+  font: 700 9.5px var(--font-sans);
+  letter-spacing: 0.08em;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  display: inline-block;
+  background: #f1f5f9;
+  color: var(--ink2);
+}
+.zh-pri.CRITICAL {
+  background: var(--bad-bg);
+  color: var(--bad);
+}
+.zh-pri.HIGH {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+.zh-pri.NORMAL {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+.zh-steps {
+  display: flex;
+  gap: 3px;
+}
+.zh-steps i {
+  flex: 1;
+  height: 8px;
+  border-radius: 9999px;
+  background: #e2e8f0;
+}
+.zh-steps i.EXECUTING {
+  background: #fbbf24;
+}
+.zh-steps i.REPORTED_COMPLETE {
+  background: #93c5fd;
+}
+.zh-steps i.VERIFIED_COMPLETE {
+  background: var(--ok);
+}
+.zh-steps i.FAILED {
+  background: var(--bad);
+}
+.zh-steps i.BLOCKED,
+.zh-steps i.REPLANNED {
+  background: repeating-linear-gradient(45deg, #f59e0b 0 3px, #fde68a 3px 6px);
+}
+.zh-steps i.ASSIGNED {
+  background: #cbd5e1;
+}
+.zh-steps i.sel {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.zh-ost {
+  font: 700 9.5px var(--font-sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: right;
+  white-space: nowrap;
+}
+.zh-ost small {
+  display: block;
+  font: 500 10px var(--font-mono);
+  color: var(--muted);
+  letter-spacing: 0;
+  text-transform: none;
+}
+.zh-lineage {
+  border-top: 1px dashed var(--line);
+  padding: 6px 12px 8px;
+  background: #f8fafc;
+}
+.zh-lineage .ln {
+  display: grid;
+  grid-template-columns: 16px 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+  font-size: 11.5px;
+  padding: 3px 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.zh-lineage .ln:hover {
+  background: #ffffff;
+}
+.zh-lineage .ln.sel {
+  background: var(--accent-bg);
+}
+
+/* Material 3 Badges & Chips */
+.zh-sb {
+  font: 700 9.5px var(--font-sans);
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: #f1f5f9;
+  color: var(--ink2);
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+}
+.zh-sb.EXECUTING,
+.zh-sb.MOVING,
+.zh-sb.PICKING,
+.zh-sb.TRANSPORTING,
+.zh-sb.PACKING {
+  background: #fef3c7;
+  color: #92400e;
+}
+.zh-sb.VERIFIED,
+.zh-sb.COMPLETED,
+.zh-sb.CORROBORATED,
+.zh-sb.ok {
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+.zh-sb.REPORTED {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+.zh-sb.FAILED,
+.zh-sb.DISPUTED,
+.zh-sb.bad {
+  background: var(--bad-bg);
+  color: var(--bad);
+}
+.zh-sb.BLOCKED,
+.zh-sb.REPLANNED,
+.zh-sb.WAITING,
+.zh-sb.warn {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+.zh-sb.sec {
+  background: var(--sec-bg);
+  color: var(--sec);
+}
+.zh-sb.samg {
+  background: var(--samg);
+  color: #fff;
+}
+.zh-agent {
+  font: 700 10.5px var(--font-mono);
+  padding: 2px 8px;
+  border-radius: 9999px;
+  color: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.1);
+  transition: all 0.15s ease;
+}
+.zh-agent:hover {
+  transform: scale(1.05);
+}
+.zh-agent.sel {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* Material 3 Arm Bars & Context Features */
+.zh-bar {
+  height: 8px;
+  background: #f1f5f9;
+  border-radius: 9999px;
+  position: relative;
+  overflow: hidden;
+  margin-top: 4px;
+}
+.zh-bar .m {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: var(--accent);
+  border-radius: 9999px 0 0 9999px;
+}
+.zh-bar .b {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(45deg, #a5b4fc 0 3px, #c7d2fe 3px 6px);
+  border-radius: 0 9999px 9999px 0;
+}
+.zh-arm {
+  margin: 4px 0 10px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  transition: background 0.15s ease;
+}
+.zh-arm:hover {
+  background: #f8fafc;
+}
+.zh-arm .h {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.zh-arm .h span:last-child {
+  font: 600 11px var(--font-mono);
+  color: var(--ink2);
+}
+.zh-arm.sel {
+  background: var(--accent-bg);
+}
+.zh-arm.sel .h span:first-child {
+  color: var(--accent);
+  font-weight: 700;
+}
+.zh-arm.off {
+  opacity: 0.55;
+}
+.zh-arm small {
+  color: var(--muted);
+  font-size: 10.5px;
+}
+
+/* Material 3 Data Tables */
+.zh-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.zh-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f8fafc;
+  text-align: left;
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--line);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.zh-table td {
+  padding: 6px 12px;
+  border-bottom: 1px solid #f1f5f9;
+  white-space: nowrap;
+}
+.zh-table tbody tr {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.zh-table tbody tr:hover td {
+  background: #f8fafc;
+}
+.zh-table tr.re td {
+  background: #fff8e6;
+}
+.zh-table tr.re td:first-child {
+  box-shadow: inset 4px 0 0 var(--warn);
+}
+.zh-table tr.sel td {
+  background: var(--accent-bg);
+}
+.zh-table tr.sel td:first-child {
+  box-shadow: inset 4px 0 0 var(--accent);
+}
+.zh-table tr.rel td {
+  background: #f4f8ff;
+}
+
+/* Material 3 Security Flow Cards */
+.zh-flow {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+.zh-fs {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 8px 10px;
+  background: var(--panel2);
+  opacity: 0.35;
+  transition: all 0.35s ease;
+  min-width: 0;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02);
+}
+.zh-fs.lit {
+  opacity: 1;
+  background: #ffffff;
+}
+.zh-fs label {
+  display: block;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.zh-fs b {
+  display: block;
+  font-size: 12px;
+  margin-top: 2px;
+  color: var(--ink);
+}
+.zh-fs small {
+  display: block;
+  font-size: 10.5px;
+  color: var(--muted);
+  line-height: 1.3;
+  margin-top: 3px;
+}
+.zh-fs.good {
+  border-color: #a7e3cd;
+  background: var(--ok-bg);
+}
+.zh-fs.good b {
+  color: var(--ok);
+}
+.zh-fs.bad {
+  border-color: #f4b4b4;
+  background: var(--bad-bg);
+}
+.zh-fs.bad b {
+  color: var(--bad);
+}
+.zh-fs.violet {
+  border-color: #d4c4fb;
+  background: var(--sec-bg);
+}
+.zh-fs.violet b {
+  color: var(--sec);
+}
+@keyframes zh-lit {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.zh-fs.anim {
+  opacity: 1;
+  animation: zh-lit 0.4s ease both;
+}
+
+/* Material 3 Event Stream */
+.zh-ev {
+  display: grid;
+  grid-template-columns: 66px 12px 1fr;
+  gap: 8px;
+  padding: 6px 14px;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 12px;
+  cursor: pointer;
+  align-items: center;
+  transition: background 0.15s ease;
+}
+.zh-ev:hover {
+  background: #f8fafc;
+}
+.zh-ev .t {
+  font: 600 11px var(--font-mono);
+  color: var(--muted);
+}
+.zh-ev i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-top: 2px;
+}
+.zh-ev b {
+  font-weight: 600;
+}
+.zh-ev span.d {
+  color: var(--muted);
+}
+.zh-ev.sec {
+  background: #faf7ff;
+}
+.zh-ev.bad {
+  background: #fffafa;
+}
+.zh-ev.sel {
+  background: var(--accent-bg);
+  box-shadow: inset 4px 0 0 var(--accent);
+}
+.zh-chip {
+  font: 600 11px var(--font-sans);
+  border: 1px solid var(--line2);
+  border-radius: 9999px;
+  padding: 3px 12px;
+  cursor: pointer;
+  color: var(--muted);
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+  transition: all 0.15s ease;
+}
+.zh-chip:hover {
+  background: #f8fafc;
+  color: var(--ink);
+}
+.zh-chip.on {
+  background: var(--ink);
+  color: #ffffff;
+  border-color: var(--ink);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.2);
+}
+
+/* Material 3 Fleet Rows */
+.zh-rb {
+  display: grid;
+  grid-template-columns: 48px 74px minmax(0, 1fr) 110px 60px;
+  gap: 12px;
+  align-items: center;
+  padding: 6px 14px;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.zh-rb:hover {
+  background: #f8fafc;
+}
+.zh-rb.sel {
+  background: var(--accent-bg);
+  box-shadow: inset 4px 0 0 var(--accent);
+}
+.zh-batt {
+  height: 7px;
+  border-radius: 9999px;
+  background: #f1f5f9;
+  overflow: hidden;
+}
+.zh-batt i {
+  display: block;
+  height: 100%;
+  border-radius: 9999px;
+}
+
+/* Material 3 Bottom Tabs */
+.zh-tab {
+  border: 1px solid transparent;
+  background: none;
+  padding: 6px 14px;
+  font: 700 11px var(--font-sans);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-radius: 9999px;
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 3px 2px;
+  transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
+}
+.zh-tab:hover {
+  color: var(--ink);
+  background: #f1f5f9;
+}
+.zh-tab.on {
+  color: #ffffff;
+  background: var(--ink);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.2);
+  border-color: var(--ink);
+}
+.zh-tab .n {
+  font: 700 10px var(--font-mono);
+  letter-spacing: 0;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  background: #e2e8f0;
+  color: var(--ink2);
+}
+.zh-tab.on .n {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+.zh-tab .n.sec {
+  background: var(--sec);
+  color: #ffffff;
+}
+.zh-tab .n.bad {
+  background: var(--bad);
+  color: #ffffff;
+}
+
+/* Material 3 Toasts */
+@keyframes zh-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+.zh-toast {
+  background: #ffffff;
+  border: 1px solid var(--line2);
+  border-left: 4px solid var(--warn);
+  border-radius: 12px;
+  padding: 8px 14px;
+  font-size: 12px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.14);
+  max-width: 360px;
+  animation: zh-drop 0.3s cubic-bezier(0.2, 0, 0, 1);
+  pointer-events: auto;
+  cursor: pointer;
+}
+.zh-toast b {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--warn);
+  font-weight: 800;
+}
+.zh-toast.bad {
+  border-left-color: var(--bad);
+}
+.zh-toast.bad b {
+  color: var(--bad);
+}
+.zh-toast.sec {
+  border-left-color: var(--sec);
+}
+.zh-toast.sec b {
+  color: var(--sec);
+}
+.zh-toast.ok {
+  border-left-color: var(--ok);
+}
+.zh-toast.ok b {
+  color: var(--ok);
+}
+.zh-toast.samg {
+  border-left-color: var(--samg);
+}
+.zh-toast.samg b {
+  color: var(--samg);
+}
+.zh-verdict {
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  animation: zh-drop 0.35s ease both;
+}
+.zh-verdict.bad {
+  background: var(--bad);
+  color: #fff;
+}
+.zh-verdict.ok {
+  background: var(--ok-bg);
+  color: var(--ok);
+}

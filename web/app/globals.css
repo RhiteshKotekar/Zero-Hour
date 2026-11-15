@@ -1,0 +1,196 @@
+@import "tailwindcss";
+
+/* Light industrial control-room tokens (ported from contract/reference/control_room_light.html, plan §6.2).
+   The control center is light-only by requirement. */
+:root {
+  --bg: #f3f6fa;
+  --panel: #ffffff;
+  --panel2: #f8fafc;
+  --line: #e2e8f0;
+  --line2: #cbd5e1;
+  --ink: #0f172a;
+  --ink2: #334155;
+  --muted: #64748b;
+  --faint: #94a3b8;
+  --accent: #2563eb;
+  --accent-bg: #eaf1ff;
+  --ok: #059669;
+  --ok-bg: #e7f7f1;
+  --warn: #c2700a;
+  --warn-bg: #fdf3e3;
+  --bad: #d92d2d;
+  --bad-bg: #fdecec;
+  --sec: #7c3aed;
+  --sec-bg: #f2ecfe;
+  --samg: #0e7490;
+  --samg-bg: #e6f4f7;
+  --pick: #2563eb;
+  --transport: #0d9488;
+  --pack: #7c3aed;
+  --dispatch: #ea580c;
+  --control: #0b1220;
+  color-scheme: light;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-panel2: var(--panel2);
+  --color-line: var(--line);
+  --color-line2: var(--line2);
+  --color-ink: var(--ink);
+  --color-ink2: var(--ink2);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-accent: var(--accent);
+  --color-accent-bg: var(--accent-bg);
+  --color-ok: var(--ok);
+  --color-ok-bg: var(--ok-bg);
+  --color-warn: var(--warn);
+  --color-warn-bg: var(--warn-bg);
+  --color-bad: var(--bad);
+  --color-bad-bg: var(--bad-bg);
+  --color-sec: var(--sec);
+  --color-sec-bg: var(--sec-bg);
+  --color-samg: var(--samg);
+  --color-samg-bg: var(--samg-bg);
+  --color-pick: var(--pick);
+  --color-transport: var(--transport);
+  --color-pack: var(--pack);
+  --color-dispatch: var(--dispatch);
+  --font-sans: var(--font-inter), "Segoe UI", system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+/* Material 3 small caps labels */
+.cap {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.btn {
+  border: 1px solid var(--line2);
+  background: #ffffff;
+  color: var(--ink);
+  border-radius: 9999px;
+  padding: 5px 12px;
+  font: 600 12px var(--font-sans);
+  cursor: pointer;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition: all 0.15s cubic-bezier(0.2, 0, 0, 1);
+}
+.btn:hover {
+  background: var(--panel2);
+  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.08);
+  transform: translateY(-0.5px);
+}
+.btn:active {
+  transform: translateY(0);
+}
+.btn.primary {
+  background: var(--ink);
+  color: #ffffff;
+  border-color: var(--ink);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.2);
+}
+.btn.primary:hover {
+  background: #1e293b;
+  border-color: #1e293b;
+  box-shadow: 0 3px 6px rgba(15, 23, 42, 0.25);
+}
+.btn.on {
+  background: var(--accent-bg);
+  border-color: #9bb8f5;
+  color: var(--accent);
+}
+.seg {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  background: #f1f5f9;
+  border-radius: 9999px;
+  padding: 2px;
+  gap: 2px;
+}
+.seg button {
+  border: 0;
+  background: transparent;
+  padding: 4px 10px;
+  font: 600 11.5px var(--font-mono);
+  cursor: pointer;
+  color: var(--ink2);
+  border-radius: 9999px;
+  transition: all 0.15s cubic-bezier(0.2, 0, 0, 1);
+}
+.seg button.on {
+  background: #ffffff;
+  color: var(--ink);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+.pulse {
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+/* 3D in-scene labels (drei <Html>) */
+.w3-label {
+  pointer-events: none;
+  white-space: nowrap;
+  font-family: var(--font-sans);
+  user-select: none;
+}
+.w3-robot {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--line2);
+  border-radius: 5px;
+  padding: 1px 5px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(11, 18, 32, 0.08);
+}
+.w3-robot small {
+  font: 600 9px var(--font-mono);
+}
+.w3-badge {
+  font: 700 10.5px var(--font-sans);
+  color: #fff;
+  border-radius: 5px;
+  padding: 2px 7px;
+  letter-spacing: 0.04em;
+  box-shadow: 0 2px 6px rgba(11, 18, 32, 0.18);
+}
+.w3-zone {
+  font: 700 10px var(--font-sans);
+  letter-spacing: 0.12em;
+  color: #8a94a6;
+  text-transform: uppercase;
+}
+.labels-off .w3-label:not(.w3-keep) {
+  display: none;
+}

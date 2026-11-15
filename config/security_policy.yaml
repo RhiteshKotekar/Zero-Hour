@@ -37,3 +37,33 @@ admission:
   quarantine_disputed_claims: true
   # Reward is always recomputed from admitted outcomes, never taken from a REWARD_CLAIM.
   reward_source: ACP_RECOMPUTED
+
+# Experiment C (signed false-report attack, brief §12.5; D036). Read only by
+# samg.evaluation.experiment_c, never by the ACP. The corruption levels are a
+# scenario configuration (fraction of attack-phase missions in which the
+# compromised agent lies), not a measured rate. preferred_topology / inflation /
+# deflation are the pre-tuning defaults: the harness tunes them on dev seeds
+# only, freezes them and records the hash before the recorded test-seed run.
+attack:
+  version: attack-v1
+  master_seed: 4242          # seed_splits: dev (tuning) / train (warm-up) / test (recorded)
+  schedule_seed: 17          # attacked stream positions (nested across levels)
+  bootstrap_seed: 7
+  compromised_agent: A1      # authorised agent with a real registered key
+  preferred_topology: DISTRIBUTED
+  inflation: 0.2
+  deflation: 0.3
+  corruption_levels: [0.0, 0.2, 0.4]
+  n_warmup: 40
+  n_dev_attack: 15
+  n_dev_followup: 15
+  n_attack: 30
+  n_followup: 30
+  n_missing_evidence: 15
+  n_replay: 5
+  alpha: 0.5                 # LinUCB, matches config/experiment.yaml
+  lam: 1.0
+  warmup_per_arm: 2
+  use_cpsat: true
+  tuning_magnitudes: [[0.2, 0.3], [0.4, 0.5], [0.6, 0.7]]
+  tuning_shift_threshold: 0.2

@@ -2,7 +2,7 @@
 // R3F scene of the communication view (plan §6.7). Static nodes/edges are React; all traffic is updated per frame
 // through refs from the shared clock (getLocalT) — no React re-render per frame.
 import { createRef, useLayoutEffect, useMemo, useRef, type RefObject } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Html, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import { ROLE_COLOR, failedRobotsAt, robotAt, STATUS_COLOR, waveAt } from "@/lib/derive";
@@ -61,7 +61,8 @@ function CommsScene({ state }: { state: TwinState }) {
       <ambientLight intensity={1.15} />
       <hemisphereLight args={["#ffffff", "#d8dee8", 0.6]} />
       <directionalLight position={[8, 16, 10]} intensity={1.4} />
-      <OrbitControls makeDefault target={[0, 0.8, -1]} enableDamping dampingFactor={0.12} maxPolarAngle={Math.PI * 0.47} minDistance={8} maxDistance={45} />
+      <OrbitControls makeDefault target={TARGET} enableDamping dampingFactor={0.12} maxPolarAngle={Math.PI * 0.47} minDistance={8} maxDistance={60} />
+      <CameraFit />
       <Floor />
       <Hub layout={layout} />
       {layout.robots
@@ -77,6 +78,25 @@ function CommsScene({ state }: { state: TwinState }) {
       <Traffic state={state} layout={layout} />
     </>
   );
+}
+
+const TARGET: [number, number, number] = [0, 1.2, -0.2];
+const VIEW_DIR = new THREE.Vector3(0, 0.66, 0.75).normalize();
+/** Frames the whole node layout for the current canvas aspect (on mount and resize only). */
+function CameraFit() {
+  const { camera, size, controls } = useThree();
+  useLayoutEffect(() => {
+    const cam = camera as THREE.PerspectiveCamera;
+    const fovV = (cam.fov * Math.PI) / 180;
+    const fovH = 2 * Math.atan(Math.tan(fovV / 2) * (size.width / Math.max(size.height, 1)));
+    const halfW = 11.2;
+    const halfD = 9.4;
+    const dist = Math.max(halfW / Math.tan(fovH / 2), (halfD * 0.95) / Math.tan(fovV / 2)) + 2;
+    cam.position.set(...TARGET).addScaledVector(VIEW_DIR, dist);
+    cam.lookAt(...TARGET);
+    (controls as unknown as { update?: () => void } | null)?.update?.();
+  }, [camera, size.width, size.height, controls]);
+  return null;
 }
 
 function Floor() {
@@ -164,7 +184,7 @@ function RobotNode({ state, id, role, pos, wave }: { state: TwinState; id: strin
         <meshStandardMaterial color="#f8fafc" roughness={0.7} />
       </mesh>
       <mesh position-y={0.55}>
-        <boxGeometry args={[0.95, 0.62, 0.95]} />
+        <boxGeometry args={[0.8, 0.55, 0.8]} />
         <meshStandardMaterial ref={body} color={color} roughness={0.5} />
       </mesh>
       <mesh position-y={0.98}>
@@ -293,7 +313,7 @@ function Edges({ layout, wave }: { layout: NodeLayout; wave: Wave }) {
           const c = arc(layout, a, b);
           if (!c) return null;
           const kind = classifyLink(g, a, b);
-          const geo = new THREE.TubeGeometry(c, 40, kind === "hub" ? 0.045 : 0.035, 6);
+          const geo = new THREE.TubeGeometry(c, 40, kind === "hub" ? 0.032 : 0.03, 6);
           return { key: `${a}|${b}`, geo, kind };
         })
         .filter((x): x is NonNullable<typeof x> => !!x),
@@ -317,7 +337,7 @@ function Edges({ layout, wave }: { layout: NodeLayout; wave: Wave }) {
     <>
       {items.map((it) => (
         <mesh key={it.key} geometry={it.geo}>
-          <meshBasicMaterial color={C[it.kind]} transparent opacity={it.kind === "hub" ? 0.5 : 0.6} />
+          <meshBasicMaterial color={C[it.kind]} transparent opacity={it.kind === "hub" ? 0.42 : 0.6} />
         </mesh>
       ))}
     </>
@@ -342,7 +362,7 @@ function toAcpArc(layout: NodeLayout, id: string, acp: THREE.Vector3): THREE.Qua
   return c;
 }
 const N_CLAIM = 48;
-const N_WITNESS = 16;
+const N_WITNESS = 32;
 const N_UPDATE = 4;
 
 function Traffic({ state, layout }: { state: TwinState; layout: NodeLayout }) {

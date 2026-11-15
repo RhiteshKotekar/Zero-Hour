@@ -258,13 +258,14 @@ small edits in `src/samg/twin/adapter.py`, `src/samg/twin/scenarios.py`, `config
 ### Phase 2-D — Live wiring, comms 3D, demo, compare, replays (owns `web/lib/api.ts`, `web/lib/ws.ts`,
 `web/lib/live.ts`, `web/components/live/**`, `web/components/comms/**`, `web/app/compare/**`,
 `web/app/replays/**`)
-- [ ] api + ws clients, live mode in store (via exported hook `useLiveConnection()`), SessionDrawer, InjectMenu,
+- [x] api + ws clients, live mode in store (via exported hook `useLiveConnection()`), SessionDrawer, InjectMenu,
       control actions → REST
-- [ ] CommsView (§6.7)
-- [ ] Auto demo + DemoBanner (§6.8)
-- [ ] `/compare` (run + table), `/replays` (list/save/load)
-- **Check:** `npm run build`; with backend running: start judge_demo, play, inject a failure, see it in 3D
-  (one screenshot); comms view screenshot.
+- [x] CommsView (§6.7)
+- [x] Auto demo + DemoBanner (§6.8)
+- [x] `/compare` (run + table), `/replays` (list/save/load)
+- **Check:** TypeScript `npx tsc --noEmit` passes. `npm run build` was attempted twice but Turbopack failed
+  while binding a local port (`Operation not permitted`, including the retry outside the sandbox); the build did
+  not reach application compilation. Backend-driven browser smoke/screenshots remain unverified in this session.
 
 ### Phase 3 — Integration & polish (single agent; may touch everything in `web/` + `scripts/` + README)
 - [ ] `scripts/dev.sh` (starts API + web), README "Control center" section
@@ -283,7 +284,7 @@ Backend tests for live session, frontend smoke (build + Playwright optional), fu
 | 1-A Live backend | ✅ done |
 | 1-B Frontend + 3D | ✅ done |
 | 2-C Panels | ✅ done |
-| 2-D Live/comms/demo | ⬜ |
+| 2-D Live/comms/demo | ⚠ implementation present; build/runtime check blocked |
 | 3 Integration | ⬜ |
 | 4 Validation | ⬜ (on request) |
 
@@ -424,6 +425,13 @@ Log (append newest last; date · phase · agent · summary · files · check · 
   headless Chrome lays out at a shorter viewport and then resizes, so the canvas can look shorter in those shots (a CDP
   screenshot shows it filling the stage). The "◉ Auto demo" button is expected inside 2-D's components (SessionDrawer
   / DemoBanner) — the shell only provides the slots. Order selection has no 3D highlight (no single robot).
+* 2026-11-15 · P2-D · continuation · completed implementation audit and hand-off. Existing 2-D code covers typed
+  REST/WS clients, live session attach/start/control and injection, the comms scene/traffic, auto-demo banners,
+  comparison, and saved replay flows; the removed temporary `/compare/preview` route was left removed. **Files changed
+  here:** this plan only. **Check:** `cd web && npx tsc --noEmit` passes. Two `npm run build` attempts failed in
+  Turbopack before application compilation because its CSS worker could not bind a local port (`Operation not
+  permitted`), including one retry outside the sandbox. Backend-driven browser smoke/screenshots are still open;
+  Phase 3 was not touched.
 
 ## 9. Mock register
 

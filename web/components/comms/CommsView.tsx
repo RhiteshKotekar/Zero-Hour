@@ -26,7 +26,7 @@ export function CommsView({ className }: CommsViewProps) {
       </div>
     );
   return (
-    <div className={`relative h-full w-full overflow-hidden bg-bg ${className ?? ""}`}>
+    <div className={`@container relative h-full w-full overflow-hidden bg-bg ${className ?? ""}`}>
       <CommsCanvas state={state} />
       <CommsOverlay state={state} />
     </div>
@@ -100,7 +100,16 @@ function CommsOverlay({ state }: { state: TwinState }) {
       )}
 
       {/* legend */}
-      <div className={`pointer-events-none absolute right-3 top-3 z-10 w-[230px] px-3 py-2 text-[11px] ${box}`}>
+      <div className={`pointer-events-none absolute bottom-3 right-3 z-10 flex flex-wrap gap-x-3 gap-y-1 px-2.5 py-1.5 text-[10.5px] @[1100px]:hidden ${box}`}>
+        <Legend color={C.hub} shape="line" text="hub link" />
+        <Legend color={C.handoff} shape="dot" text="handoff" />
+        <Legend color={C.claim} shape="sq" text="claim" />
+        <Legend color={C.ok} shape="sq" text="corroborated" />
+        <Legend color={C.bad} shape="sq" text="disputed" />
+        <Legend color={C.witness} shape="dia" text="witness" />
+        <Legend color={C.ok} shape="dot" text="learner update" />
+      </div>
+      <div className={`pointer-events-none absolute right-3 top-3 z-10 hidden w-[230px] px-3 py-2 text-[11px] @[1100px]:block ${box}`}>
         <div className="cap">Links (SAMG coordination graph)</div>
         {(Object.keys(LINK_LABEL) as LinkKind[]).map((k) => (
           <div key={k} className={`mt-1 flex items-center gap-2 ${kinds.has(k) ? "" : "opacity-40"}`}>
@@ -121,7 +130,7 @@ function CommsOverlay({ state }: { state: TwinState }) {
       </div>
 
       {/* recent traffic */}
-      <div className={`pointer-events-none absolute bottom-3 left-3 z-10 w-[min(470px,calc(100%-24px))] px-3 py-2 ${box}`}>
+      <div className={`pointer-events-none absolute bottom-3 left-3 z-10 hidden w-[min(470px,calc(100%-24px))] px-3 py-2 @[1100px]:block ${box}`}>
         <div className="cap">Recent coordination traffic</div>
         {rows.slice(0, 5).map((r, i) => (
           <div key={i} className="mt-0.5 flex gap-2 truncate text-[11px]">
@@ -136,11 +145,11 @@ function CommsOverlay({ state }: { state: TwinState }) {
   );
 }
 
-function Legend({ color, shape, text }: { color: string; shape: "dot" | "sq" | "dia"; text: string }) {
+function Legend({ color, shape, text }: { color: string; shape: "dot" | "sq" | "dia" | "line"; text: string }) {
   return (
-    <div className="mt-1 flex items-center gap-2">
+    <div className="mt-1 flex items-center gap-1.5">
       <span
-        className={`inline-block h-[8px] w-[8px] ${shape === "dot" ? "rounded-full" : shape === "dia" ? "rotate-45" : "rounded-[1px]"}`}
+        className={`inline-block ${shape === "line" ? "h-[3px] w-4 rounded" : "h-[8px] w-[8px]"} ${shape === "dot" ? "rounded-full" : shape === "dia" ? "rotate-45" : shape === "sq" ? "rounded-[1px]" : ""}`}
         style={{ background: color }}
       />
       {text}

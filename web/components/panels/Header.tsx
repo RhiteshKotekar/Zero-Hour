@@ -40,7 +40,7 @@ export function Header({ className }: HeaderProps) {
       {/* Mode Badge (Live / Replay) */}
       <span
         className={`flex flex-none items-center rounded-full border px-3 py-1 text-[11px] font-bold shadow-xs transition-colors ${
-          mode === "live" ? "border-[#a7e3cd] bg-ok-bg text-ok" : "border-line bg-panel2 text-ink"
+          mode === "live" ? "border-ok/30 bg-ok-bg text-ok" : "border-line bg-panel2 text-ink"
         }`}
         title={source}
       >
@@ -57,7 +57,7 @@ export function Header({ className }: HeaderProps) {
           Compare
         </Link>
         <Link
-          className="inline-flex items-center gap-1.5 rounded-full border border-[#b5dde6] bg-samg-bg px-3 py-1 text-samg transition-colors hover:border-samg hover:bg-white"
+          className="inline-flex items-center gap-1.5 rounded-full border border-samg/30 bg-samg-bg px-3 py-1 text-samg transition-colors hover:border-samg hover:bg-panel"
           href="/compare-replay"
           title="Side-by-side replay: SAMG vs conventional baseline on the identical mission"
         >

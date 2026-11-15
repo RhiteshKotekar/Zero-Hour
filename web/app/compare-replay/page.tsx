@@ -197,7 +197,7 @@ export default function CompareReplayPage() {
           <span className="cap" id="preset-label">Mission</span>
           <select
             aria-labelledby="preset-label"
-            className="rounded-full border border-line2 bg-white px-3 py-1 text-[12px] font-semibold text-ink shadow-xs"
+            className="rounded-full border border-line2 bg-panel px-3 py-1 text-[12px] font-semibold text-ink shadow-xs"
             value={preset ?? ""}
             onChange={(e) => choose(e.target.value)}
           >
@@ -210,7 +210,7 @@ export default function CompareReplayPage() {
         </div>
       </header>
 
-      {err && <p className="rounded-2xl border border-[#f5c2c2] bg-bad-bg px-4 py-3 text-[12px] font-semibold text-bad">{err}</p>}
+      {err && <p className="rounded-2xl border border-bad/30 bg-bad-bg px-4 py-3 text-[12px] font-semibold text-bad">{err}</p>}
 
       {/* Verdict + KPIs */}
       {S && B && meta ? (
@@ -388,7 +388,7 @@ function Verdict({ S, B, attack, onAttack }: { S: M; B: M; attack?: { label: str
   if (fc > 0) {
     const trustWin = faB > faS;
     return (
-      <section className="flex flex-wrap items-center gap-4 rounded-2xl border border-[#a7e3cd] bg-ok-bg px-5 py-3.5 shadow-xs">
+      <section className="flex flex-wrap items-center gap-4 rounded-2xl border border-ok/30 bg-ok-bg px-5 py-3.5 shadow-xs">
         <div className="grid h-10 w-10 flex-none place-items-center rounded-xl bg-ok text-[18px] text-white">✓</div>
         <div className="min-w-0 flex-1">
           <div className="text-[15px] font-bold text-ink">
@@ -504,7 +504,7 @@ function BarRow({ row, S, B }: { row: Row; S: M; B: M }) {
         <span className={`text-[10.5px] font-semibold ${mode === "samg" ? "text-samg" : "text-muted"}`}>
           {mode === "samg" ? "SAMG" : "Conventional"}
         </span>
-        <div className="h-2 overflow-hidden rounded-full bg-[#f1f5f9]">
+        <div className="h-2 overflow-hidden rounded-full bg-line/60">
           <div className="h-full rounded-full transition-[width] duration-500" style={{ width: `${Math.max(w, num(v) ? 2 : 0)}%`, background: color }} />
         </div>
         <span
@@ -538,14 +538,14 @@ function Step({ children, tone }: { children: React.ReactNode; tone: "samg" | "s
     <span
       className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
         tone === "samg"
-          ? "border-[#b5dde6] bg-samg-bg text-samg"
+          ? "border-samg/30 bg-samg-bg text-samg"
           : tone === "sec"
-            ? "border-[#d9c8fb] bg-sec-bg text-sec"
+            ? "border-sec/30 bg-sec-bg text-sec"
             : tone === "bad"
-              ? "border-[#f5c2c2] bg-bad-bg text-bad"
+              ? "border-bad/30 bg-bad-bg text-bad"
               : tone === "ok"
-                ? "border-[#a7e3cd] bg-ok-bg text-ok"
-                : "border-line2 bg-white text-ink2"
+                ? "border-ok/30 bg-ok-bg text-ok"
+                : "border-line2 bg-panel text-ink2"
       }`}
     >
       {children}
@@ -598,7 +598,7 @@ function Evidence() {
         <span className="sub">30 seeds per scenario, paired · docs/RESULTS_BASELINE.md (R16)</span>
       </div>
       <div className="grid gap-2.5 px-4 py-3 md:grid-cols-3">
-        <div className="rounded-xl border border-[#a7e3cd] bg-ok-bg px-3.5 py-3">
+        <div className="rounded-xl border border-ok/30 bg-ok-bg px-3.5 py-3">
           <div className="cap !text-ok">Under malicious reports (W5)</div>
           <div className="mt-1 flex items-baseline gap-2">
             <span className="mono text-[26px] font-bold text-ok">+28.6</span>
@@ -616,7 +616,7 @@ function Evidence() {
           </div>
           <div className="mt-1 text-[11.5px] text-ink2">SAMG 100% vs 96.8%, at +26 s average fulfilment.</div>
         </div>
-        <div className="rounded-xl border border-[#f3d9b0] bg-warn-bg px-3.5 py-3">
+        <div className="rounded-xl border border-warn/30 bg-warn-bg px-3.5 py-3">
           <div className="cap !text-warn">The trade-off</div>
           <div className="mt-1 flex items-baseline gap-2">
             <span className="mono text-[26px] font-bold text-warn">+13.6 s</span>
@@ -633,9 +633,9 @@ function Evidence() {
 }
 
 const CHIP_TONE = {
-  samg: "border-[#b5dde6] bg-samg-bg text-samg",
-  sec: "border-[#d9c8fb] bg-sec-bg text-sec",
-  plain: "border-line2 bg-white text-ink2",
+  samg: "border-samg/30 bg-samg-bg text-samg",
+  sec: "border-sec/30 bg-sec-bg text-sec",
+  plain: "border-line2 bg-panel text-ink2",
 } as const;
 
 function Chip({ on, tone = "plain", children }: { on: boolean; tone?: keyof typeof CHIP_TONE; children: React.ReactNode }) {

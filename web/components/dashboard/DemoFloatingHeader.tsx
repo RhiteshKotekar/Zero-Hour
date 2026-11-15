@@ -85,6 +85,13 @@ export function DemoFloatingHeader({
           <Link href="/replays" className="rounded-xl px-3 py-1.5 hover:bg-panel2 hover:text-ink transition-colors">
             Replays
           </Link>
+          <Link
+            href="/compare-replay"
+            className="rounded-xl border border-samg/30 bg-samg-bg px-3 py-1.5 text-samg transition-colors hover:border-samg"
+            title="Side-by-side replay: SAMG vs conventional baseline on the identical mission"
+          >
+            SAMG vs Baseline
+          </Link>
         </nav>
       </div>
 

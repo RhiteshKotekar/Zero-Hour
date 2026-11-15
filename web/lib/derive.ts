@@ -301,7 +301,8 @@ export function kpisAt(state: TwinState, t: number): KpisAt {
     for (const s of segs) {
       if (s.t0 > t) break;
       const e = Math.min(s.t1, t);
-      if (mobile && (s.kind === "move" || s.kind === "work" || s.kind === "wait")) busy += e - s.t0;
+      // busy = working on a task (driving back to the park is not work)
+      if (mobile && s.task && (s.kind === "move" || s.kind === "work" || s.kind === "wait")) busy += e - s.t0;
       if (s.kind === "move") dist += (s.o1 - s.o0) * Math.min(1, (e - s.t0) / Math.max(s.t1 - s.t0, 1e-9));
       if (s.kind === "wait") cong += e - s.t0;
     }

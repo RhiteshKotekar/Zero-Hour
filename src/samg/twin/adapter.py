@@ -34,7 +34,7 @@ from samg.orchestration import SIM_BASE_TIME, MissionRunRecord, RunSettings, Wor
 from samg.simulation.engine import run as simulate
 from samg.twin.agents import RobotSpec, robots_from_config, to_agent_profile
 from samg.twin.congestion import AisleLocks
-from samg.twin.environment import INF, RobotState, Segment, WaveReplay, replay_wave
+from samg.twin.environment import INF, RobotState, Segment, WaveReplay, _clip, clip_overlaps, replay_wave
 from samg.twin.inventory import Inventory
 from samg.twin.layout import Layout, load_config
 from samg.twin.orders import Order, generate_orders, orders_from_config, s_to_clock
@@ -66,8 +66,11 @@ class WarehouseEnv:
         samg = cfg["samg"]
         hop_p = samg["comm_failure_probability"] if any(i.kind == "comm_failure" for i in injections) \
             else samg["hop_failure_probability"]
-        costs = base.costs.model_copy(update={"handoff_delay_ms_per_hop": samg["handoff_delay_s_per_hop"] * MS,
-                                              "hop_failure_probability": hop_p})
+        update: dict[str, Any] = {"handoff_delay_ms_per_hop": samg["handoff_delay_s_per_hop"] * MS,
+                                  "hop_failure_probability": hop_p}
+        if "distributed_max_degree" in samg:   # twin-fleet override (D043); the core config keeps its value
+            update["distributed_max_degree"] = int(samg["distributed_max_degree"])
+        costs = base.costs.model_copy(update=update)
         self.settings = replace(base, costs=costs)
         self.timing = cfg["timing"]
 
@@ -282,7 +285,7 @@ def run_wave(env: WarehouseEnv, world: World, wtasks: dict[str, WarehouseTask], 
                              states=states, tasks=wtasks, plan=record.plan, trace=record.trace, timing=env.timing,
                              locks=locks, t_offset=t_offset, failing_robots=frozenset(failing))
         for rid, ms in down.items():
-            _mark_down(replay, rid, t_offset + ms / MS)
+            _mark_down(replay, rid, t_offset + ms / MS, locks)
         for w in record.witness_events:
             verified[w.task_id] = w.to_state.value
     return Wave(number=number, mission_id=mission_id, mission_index=mission_index, t_offset=t_offset,
@@ -291,16 +294,26 @@ def run_wave(env: WarehouseEnv, world: World, wtasks: dict[str, WarehouseTask], 
                 failing_robots=frozenset(failing), excluded_robots=excluded)
 
 
-def _mark_down(replay: WaveReplay, rid: str, t_down: float) -> None:
-    """A robot that went down while idle (no task executing) is FAILED from ``t_down`` on."""
+def _mark_down(replay: WaveReplay, rid: str, t_down: float, locks: AisleLocks | None = None) -> None:
+    """A robot that went down while idle (no task executing) is FAILED from ``t_down`` on, where it stands
+    (possibly on its way back to the park), and becomes an obstacle for the traffic planner."""
     st = replay.states[rid]
     if st.failed:
         return
     t0 = max(t_down, st.free_at)
-    replay.segments.setdefault(rid, []).append(
-        Segment(rid, t0, INF, "failed", "FAILED", st.cell, battery0=st.battery, battery1=st.battery,
+    cell = st.cell
+    loc = locks.traffic.locate(rid, t0) if locks is not None else None
+    if loc is not None:
+        t0 = max(t0, loc[1].arrive) if loc[1].arrive > t0 and loc[1].arrive - t0 < 2.0 else t0
+        cell = loc[1].cell
+    track = replay.segments.setdefault(rid, [])
+    _clip(track, t0)
+    replay.segments[rid].append(
+        Segment(rid, t0, INF, "failed", "FAILED", cell, battery0=st.battery, battery1=st.battery,
                 odo0=st.odometer, odo1=st.odometer, note="robot failure while idle"))
-    replay.states[rid] = replace(st, free_at=INF, failed=True, failed_at=t0)
+    if locks is not None:
+        locks.traffic.mark_failed(rid, t0, cell)
+    replay.states[rid] = replace(st, cell=cell, free_at=INF, failed=True, failed_at=t0)
 
 
 # --- full run ---------------------------------------------------------------------
@@ -457,6 +470,7 @@ def build_state(run: WarehouseRun) -> dict[str, Any]:
     claims: list[dict[str, Any]] = []
     waves_json: list[dict[str, Any]] = []
     robot_segments: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    signalled: set[tuple[str, tuple[int, int]]] = set()     # failure signals already announced
     congestion: list[dict[str, Any]] = []
     windows_abs: dict[str, tuple[float, float]] = {}
     witness_json: list[dict[str, Any]] = []
@@ -611,8 +625,29 @@ def build_state(run: WarehouseRun) -> dict[str, Any]:
                                    "t0": _r(wt.t0), "t1": _r(wt.t1), "blockers": list(wt.blockers),
                                    "wave": w.number})
                 ev(wt.t0, "warn", f"Congestion at {wt.aisle}",
-                   f"{wt.robot} waits {wt.seconds:.1f}s at the entrance ({', '.join(wt.blockers)} inside)",
+                   f"{wt.robot} waits {wt.seconds:.1f}s" + (f" ({', '.join(wt.blockers)} in the way)" if wt.blockers
+                                                             else ""),
                    robot=wt.robot, aisle=wt.aisle, wave=w.number)
+            by_failure: dict[tuple, list] = defaultdict(list)
+            for rr in w.replay.reroutes:
+                by_failure[(rr.failed, rr.cell)].append(rr)
+            for (failed_r, cell), rrs in sorted(by_failure.items(), key=lambda x: min(r.t_fail for r in x[1])):
+                where = rrs[0].aisle or env.layout.zone_at(cell)
+                if (failed_r, cell) not in signalled:
+                    signalled.add((failed_r, cell))
+                    ev(min(r.t_fail for r in rrs), "bad", f"Failure signal: {failed_r} blocks {where} {list(cell)}",
+                       f"broadcast to the fleet; {', '.join(sorted({r.robot for r in rrs}))} take an alternative path",
+                       robot=failed_r, aisle=rrs[0].aisle, wave=w.number)
+                for rr in rrs:
+                    if rr.replanned:
+                        ev(rr.t, "warn", f"{rr.robot} rerouted around {failed_r}",
+                           (f"{rr.task}: re-planned mid-route, " if rr.task else "returning to park: re-planned, ")
+                           + f"{rr.delay_s:+.1f}s vs its original route", robot=rr.robot, task=rr.task, wave=w.number)
+                    else:
+                        ev(rr.t, "info", f"{rr.robot} routes around failed {failed_r}",
+                           f"{rr.task or 'park'}: alternative path past {where} {list(cell)} "
+                           f"({rr.delay_s:+.1f}s vs the blocked shortest route)", robot=rr.robot, task=rr.task,
+                           wave=w.number)
             for ar in w.replay.arrivals:
                 ev(ar.t, "move", f"{ar.robot} reached {ar.place}", ar.task, robot=ar.robot, task=ar.task, wave=w.number)
 
@@ -707,7 +742,7 @@ def build_state(run: WarehouseRun) -> dict[str, Any]:
             "id": r.robot_id, "role": r.role, "label": r.label, "capabilities": list(r.capabilities),
             "coordinator": r.coordinator, "lead": r.lead, "physical": r.physical, "mobile": r.mobile,
             "home": list(r.home), "station": r.station, "speed": r.speed, "battery0": st0.battery,
-            "segments": sorted(robot_segments.get(r.robot_id, []), key=lambda s: s["t0"]),
+            "segments": clip_overlaps(robot_segments.get(r.robot_id, [])),
             "failed_at": _r(st1.failed_at),
         })
 
@@ -736,7 +771,8 @@ def compute_kpis(run: WarehouseRun, orders: list[dict[str, Any]], tasks: list[di
     done = [o for o in orders if o["dispatched_at"] is not None]
     mobile = [r for r in robots if r["mobile"]]
     busy = sum(min(s["t1"] if s["t1"] is not None else end_s, end_s) - s["t0"]
-               for r in mobile for s in r["segments"] if s["kind"] in ("move", "work", "wait"))
+               for r in mobile for s in r["segments"]
+               if s["kind"] in ("move", "work", "wait") and s.get("task"))   # returning to the park is not work
     travel = sum(s["o1"] - s["o0"] for r in robots for s in r["segments"])
     lat = [t["latency_s"] for t in tasks if t["latency_s"] is not None and t["verified_at"] is not None]
     rewards = [w.record.acp_reward.reward for w in run.waves if w.record.acp_reward is not None]

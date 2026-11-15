@@ -6,6 +6,13 @@ import { clockAt } from "@/lib/derive";
 import { useStore } from "@/lib/store";
 import { useTwin } from "@/components/shell/ui";
 import { openPopoutWindow } from "@/lib/popoutSync";
+import { LiveDock, liveInject } from "@/components/live/LiveDock";
+
+const TONE = {
+  bad: { row: "hover:bg-bad-bg hover:text-bad", dot: "bg-bad" },
+  sec: { row: "hover:bg-sec-bg hover:text-sec", dot: "bg-sec" },
+  warn: { row: "hover:bg-warn-bg hover:text-warn", dot: "bg-warn" },
+} as const;
 
 function fmtSec(sec: number): string {
   const m = Math.floor(sec / 60);
@@ -57,11 +64,9 @@ export function DemoFloatingControls() {
     seek(val);
   };
 
-  const handleInject = (kind: string) => {
+  const handleInject = (req: Parameters<typeof liveInject>[0], label: string) => {
     setInjectOpen(false);
-    useStore.getState().pushToast("warn", `Injected simulated event: ${kind}`);
-    // Jump forward slightly to see reaction if running
-    if (!playing) step(5);
+    void liveInject(req, label);
   };
 
   return (
@@ -248,34 +253,26 @@ export function DemoFloatingControls() {
                   Inject Runtime Anomaly
                 </div>
                 <div className="flex flex-col gap-1 mt-1.5 text-xs font-bold">
-                  <button
-                    onClick={() => handleInject("Aisle 4 Congestion")}
-                    className="flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-left hover:bg-warn-bg text-ink hover:text-warn transition-colors"
-                  >
-                    <span className="h-2 w-2 rounded-full bg-warn" />
-                    Aisle 4 Obstacle
-                  </button>
-                  <button
-                    onClick={() => handleInject("Robot R04 Motor Fault")}
-                    className="flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-left hover:bg-bad-bg text-ink hover:text-bad transition-colors"
-                  >
-                    <span className="h-2 w-2 rounded-full bg-bad" />
-                    Robot R04 Motor Failure
-                  </button>
-                  <button
-                    onClick={() => handleInject("Byzantine Disputed Claim")}
-                    className="flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-left hover:bg-sec-bg text-ink hover:text-sec transition-colors"
-                  >
-                    <span className="h-2 w-2 rounded-full bg-sec" />
-                    ACP Byzantine Tampering
-                  </button>
-                  <button
-                    onClick={() => handleInject("Urgent Priority Rush Order")}
-                    className="flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-left hover:bg-accent-bg text-ink hover:text-accent transition-colors"
-                  >
-                    <span className="h-2 w-2 rounded-full bg-accent" />
-                    Priority Rush Order
-                  </button>
+                  {([
+                    [{ kind: "robot_failure", robot: "auto:AISLE" }, "Robot fails inside an aisle", "bad", "blocks its aisle cell; robots behind it reroute"],
+                    [{ kind: "robot_failure", robot: "auto:TRANSPORT" }, "Transport robot failure", "bad", "its work is re-planned at the wave end"],
+                    [{ kind: "malicious_report", robot: "auto:PICK" }, "Malicious completion report", "sec", "signed false claims; witness + ACP reject them"],
+                    [{ kind: "aisle_blockage", aisle: "AI-4" }, "Aisle AI-4 blocked", "warn", "affects waves planned after it"],
+                    [{ kind: "comm_failure" }, "Communication failure", "warn", "lossy network for later waves"],
+                  ] as const).map(([req, label, tone, hint]) => (
+                    <button
+                      key={label}
+                      onClick={() => handleInject(req, label)}
+                      className={`flex items-start gap-2.5 rounded-xl px-2.5 py-2 text-left text-ink transition-colors ${TONE[tone].row}`}
+                    >
+                      <span className={`mt-1 h-2 w-2 flex-none rounded-full ${TONE[tone].dot}`} />
+                      <span>
+                        {label}
+                        <span className="block text-[10px] font-medium text-muted">{hint}</span>
+                      </span>
+                    </button>
+                  ))}
+                  <div className="px-2.5 pt-1 text-[10px] font-medium text-muted">Live sessions only — press L to go live.</div>
                 </div>
               </div>
             )}
@@ -298,6 +295,7 @@ export function DemoFloatingControls() {
 
         {/* Lower Row: Camera Presets, Follow Status, and Ops/Comms Toggle */}
         <div className="flex w-full flex-wrap items-center justify-between gap-3 border-t border-line/60 pt-2 px-2 text-xs">
+          <LiveDock />
           {/* Camera Controls */}
           <div className="flex items-center gap-2">
             <span className="text-muted font-medium">Camera:</span>

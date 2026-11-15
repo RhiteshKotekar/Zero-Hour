@@ -5,16 +5,22 @@ import { useEffect, useState } from "react";
 import { useClockDriver, useStore } from "@/lib/store";
 import { useLiveConnection } from "@/lib/live";
 import { useDashboardPopoutTracker } from "@/lib/popoutSync";
+import { useLiveShortcuts } from "@/components/live/LiveDock";
 import { DemoDashboard } from "@/components/dashboard/DemoDashboard";
 import { DetailedDashboard } from "@/components/dashboard/DetailedDashboard";
 
 export default function Home() {
   useClockDriver(10);
   useDashboardPopoutTracker();
+  useLiveShortcuts();
   const mode = useStore((s) => s.mode);
   const dashboardMode = useStore((s) => s.dashboardMode);
   const [liveParam] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("live") === "1");
   useLiveConnection(liveParam || mode === "live");
+
+  useEffect(() => {
+    useStore.getState().hydratePrefs();
+  }, []);
 
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);

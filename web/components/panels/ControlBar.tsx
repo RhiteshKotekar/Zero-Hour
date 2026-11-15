@@ -8,6 +8,7 @@ import { useStore } from "@/lib/store";
 import { useTwin } from "@/components/shell/ui";
 import { SessionDrawer } from "@/components/live/SessionDrawer";
 import { InjectMenu } from "@/components/live/InjectMenu";
+import { LiveDock } from "@/components/live/LiveDock";
 
 export interface ControlBarProps {
   className?: string;
@@ -49,6 +50,7 @@ export function ControlBar({ className }: ControlBarProps) {
   return (
     <div className={`flex items-center gap-2 rounded-2xl border border-line bg-panel px-3.5 py-2 shadow-sm ${className ?? ""}`}>
       <SessionDrawer />
+      <LiveDock />
       <button className="btn primary w-[96px] justify-center" onClick={onPlay} disabled={!state}>
         {playing ? "❚❚ Pause" : atEnd ? "↻ Replay" : t > 0 ? "▶ Resume" : "▶ Start"}
       </button>

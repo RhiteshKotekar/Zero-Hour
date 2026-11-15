@@ -183,9 +183,10 @@ export interface Arm {
   topology: Topology;
   offered: boolean;
   selected: boolean;
-  mean: number;
-  bonus: number;
-  score: number;
+  /** null when no learning policy scored this wave (fixed baseline or operator-forced) */
+  mean: number | null;
+  bonus: number | null;
+  score: number | null;
   reasons: string[];
 }
 export interface CoordGraph {
@@ -350,6 +351,9 @@ export interface LiveInfo {
   /** order ids arrived but not yet in a wave */
   pending_orders: string[];
   planning: "idle" | "planning" | "running";
+  /** operator topology override in force for newly planned waves (null = the policy decides) */
+  forced_topology?: Topology | null;
+  forced_since?: number | null;
 }
 
 export interface TwinState {

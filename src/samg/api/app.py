@@ -39,6 +39,11 @@ class SessionRequest(BaseModel):
     seed: int | None = None
     experience: int | None = None
     use_cpsat: bool = True
+    topology: str | None = None          # operator override from wave 1 (None/"auto" = the policy decides)
+
+
+class TopologyRequest(BaseModel):
+    topology: str | None = None          # HIERARCHICAL | FUNCTIONAL_CELL | DISTRIBUTED, or None/"auto" to clear
 
 
 class ControlRequest(BaseModel):
@@ -170,7 +175,7 @@ def create_app() -> FastAPI:
     async def create_session(req: SessionRequest) -> dict[str, Any]:
         try:
             s = await asyncio.to_thread(LiveSession, req.scenario, req.policy, req.seed, req.experience,
-                                        req.use_cpsat, cfg)
+                                        req.use_cpsat, cfg, None, req.topology)
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
         hub.session = s
@@ -189,13 +194,22 @@ def create_app() -> FastAPI:
         if req.action == "reset":
             p = s.params
             hub.session = await asyncio.to_thread(LiveSession, p["scenario"], p["policy"], p["seed"],
-                                                  p["experience"], p["use_cpsat"], cfg, p["script"])
+                                                  p["experience"], p["use_cpsat"], cfg, p["script"],
+                                                  s.forced_topology.value if s.forced_topology else None)
             return {"session_id": hub.session.session_id, "clock": hub.session.clock()}
         try:
             clock = await asyncio.to_thread(s.control, req.action, req.value)
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
         return {"session_id": s.session_id, "clock": clock}
+
+    @app.post("/api/session/topology")
+    async def set_topology(req: TopologyRequest) -> dict[str, Any]:
+        s = session()
+        try:
+            return await asyncio.to_thread(s.set_topology, req.topology)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
 
     @app.post("/api/session/inject")
     async def inject(req: InjectRequest) -> dict[str, Any]:

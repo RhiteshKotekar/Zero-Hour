@@ -96,6 +96,7 @@ samg:                            # how warehouse orders become a SAMG mission
   handoff_delay_s_per_hop: 3.0   # coordination latency per graph hop (warehouse network)
   hop_failure_probability: 0.02
   comm_failure_probability: 0.45 # used by the "communication failure" injection
+  distributed_max_degree: 5      # twin fleet only (D043): at 3 TRANSPORT->PACK is unreachable; 5 survives a robot loss
   resource_budget: 10.0          # per robot, resource units per mission
   priority_weight: {CRITICAL: 3.0, HIGH: 2.0, NORMAL: 1.0, LOW: 0.5}
   dock_by_priority: {CRITICAL: D1, HIGH: D2, NORMAL: D3, LOW: D3}
@@ -135,6 +136,19 @@ scenarios:
     policy: adaptive
     injections: []
     orders: {source: generated, seed: 500, interval_s: 60, batches: 4}   # live session only
+  aisle_failure:
+    label: "Aisle failure: a robot breaks down inside a pick aisle, others reroute"
+    seed: 11
+    policy: adaptive
+    injections: []
+    script:                      # live session only
+      - {at: 70, kind: robot_failure, robot: "auto:AISLE"}   # the robot inside a pick aisle at t (blocks its cell)
+  continuous:
+    label: "Continuous demand: a new wave every few minutes (switch topology between waves)"
+    seed: 11
+    policy: adaptive
+    injections: []
+    orders: {source: generated, seed: 500, interval_s: 200, batches: 6}  # live session only
 
 live:                            # live session clock
   rate: 1.0                      # simulated seconds per real second at speed 1

@@ -17,6 +17,7 @@ import {
   TASK_STATUS_LABEL,
   assignmentAt,
   clockAt,
+  kpisAt,
 } from "@/lib/derive";
 import { useStore } from "@/lib/store";
 import type { Order, Robot, Task, TwinState, Wave } from "@/lib/types";
@@ -200,14 +201,15 @@ function OverviewTab({ state, t, w }: { state: TwinState; t: number; w: Wave | n
     const s = robotAt(state, r.id, t)?.status;
     return s === "PICKING" || s === "TRANSPORTING" || s === "MOVING";
   }).length;
-  const fleetUtil = Math.round((busyCount / Math.max(mobileRobots.length, 1)) * 100);
 
   const disputed = claimsAt(state, t).filter((c) => c.evidence === "DISPUTED").length;
-  const latency = (11.1 + (t % 5) * 0.2).toFixed(1);
-  const distance = Math.round(225 + t * 1.8);
-  const congestionTime = (30.7 + (t % 4) * 0.3).toFixed(1);
-  const failedTasks = states.filter((s) => s === "FAILED").length;
-  const rewardVal = w?.reward?.value != null ? w.reward.value.toFixed(3) : "0.932";
+  // every figure below is measured from the run up to t (lib/derive kpisAt), never invented
+  const k = kpisAt(state, t);
+  const latency = k.lat != null ? k.lat.toFixed(1) : "—";
+  const distance = Math.round(k.dist);
+  const congestionTime = k.cong.toFixed(1);
+  const failedTasks = k.fails;
+  const rewardVal = k.rew != null ? k.rew.toFixed(3) : "—";
 
   return (
     <div className="flex flex-col gap-6">
@@ -256,7 +258,7 @@ function OverviewTab({ state, t, w }: { state: TwinState; t: number; w: Wave | n
           <PipelineStep label="1. Warehouse Spec" value="30×20m · 10 Robots" status="ok" />
           <PipelineStep label="2. Orders Received" value={`${orders.length} Orders Loaded`} status="ok" />
           <PipelineStep label="3. Context Extraction" value="Features Extracted (ctx-v1)" status="ok" />
-          <PipelineStep label="4. LinUCB Policy" value={w ? topoLabel(w.topology) : "Hierarchical"} status="active" />
+          <PipelineStep label="4. LinUCB Policy" value={w ? topoLabel(w.topology) : "—"} status="active" />
           <PipelineStep label="5. CP-SAT Allocation" value="Optimal · 4m 12s makespan" status="ok" />
           <PipelineStep label="6. Witness & ACP" value={disputed > 0 ? `${disputed} Quarantined` : "100% Admitted"} status={disputed > 0 ? "warn" : "ok"} />
         </div>
@@ -270,13 +272,17 @@ function OverviewTab({ state, t, w }: { state: TwinState; t: number; w: Wave | n
         <div className="grid grid-cols-2 gap-3.5">
           <KpiCard title="Order Completion" value={`${pctTasks}%`} desc={`${verifiedTasks} of ${tasks.length} verified`} />
           <KpiCard title="Avg Task Latency" value={`${latency}s`} desc="Dispatch release to start" tone="ok" />
-          <KpiCard title="Fleet Utilization" value={`${fleetUtil}%`} desc={`${busyCount} of ${mobileRobots.length} AMRs active`} />
+          <KpiCard
+            title="Fleet Utilization"
+            value={k.util != null ? `${Math.round(k.util * 100)}%` : "—"}
+            desc={`time on tasks so far · ${busyCount} of ${mobileRobots.length} AMRs busy now`}
+          />
           <KpiCard title="Total AMR Distance" value={`${distance}m`} desc="Cumulative fleet travel" />
-          <KpiCard title="Congestion Delay" value={`${congestionTime}s`} desc="Aisle lock wait duration" />
+          <KpiCard title="Congestion Delay" value={`${congestionTime}s`} desc="Time robots waited for traffic" />
           <KpiCard title="Failed Tasks" value={`${failedTasks}`} desc="Execution fault instances" tone={failedTasks > 0 ? "bad" : "muted"} />
           <KpiCard title="Security Violations" value={`${disputed}`} desc="ACP rejected claims" tone={disputed > 0 ? "bad" : "ok"} />
-          <KpiCard title="LinUCB Reward" value={rewardVal} desc="Adaptive RL reward value" tone="ok" />
-          <KpiCard title="Active Topology" value={w ? topoLabel(w.topology) : "Hierarchical"} desc="SAMG coordination mesh" colSpan={2} />
+          <KpiCard title="LinUCB Reward" value={rewardVal} desc={k.rewW ? `secure reward, ${k.rewW}` : "no wave verified yet"} tone="ok" />
+          <KpiCard title="Active Topology" value={w ? topoLabel(w.topology) : "—"} desc="SAMG coordination mesh" colSpan={2} />
         </div>
       </div>
     </div>
@@ -589,7 +595,22 @@ function AiPolicyTab({ w }: { w: Wave }) {
           </span>
         </div>
         <p className="text-sm text-ink leading-relaxed font-semibold">
-          The SAMG reinforcement learning governance agent evaluated warehouse bottlenecks, topology graph densities, and robot availability. It chose <b>{topoLabel(w.topology)}</b> as the argmax reward candidate (Score: {w.arms.find((a) => a.selected)?.score.toFixed(3) ?? "0.932"}).
+          {w.policy === "P0-OPERATOR" ? (
+            <>
+              The operator forced <b>{topoLabel(w.topology)}</b> for this wave. SAMG&apos;s policy did not choose it, and the
+              protected LinUCB learner is not updated from this wave.
+            </>
+          ) : (
+            <>
+              The SAMG reinforcement learning governance agent evaluated warehouse bottlenecks, topology graph densities, and
+              robot availability. It chose <b>{topoLabel(w.topology)}</b> as the argmax reward candidate
+              {(() => {
+                const sc = w.arms.find((a) => a.selected)?.score;
+                return sc != null ? ` (Score: ${sc.toFixed(3)})` : "";
+              })()}
+              .
+            </>
+          )}
         </p>
       </div>
 

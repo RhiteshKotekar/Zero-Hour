@@ -108,6 +108,8 @@ export interface StoreState {
   setPopoutActive: (active: boolean) => void;
   setDashboardMode: (mode: DashboardMode) => void;
   setTheme: (theme: "light" | "dark") => void;
+  /** Client-only: apply ?mode=, saved dashboard mode and saved theme. Call from a mount effect. */
+  hydratePrefs: () => void;
   toggleTheme: () => void;
 }
 
@@ -127,10 +129,9 @@ export const useStore = create<StoreState>()((set, get) => ({
   camera: null,
   toasts: [],
   isPopoutActive: false,
-  theme: (typeof window !== "undefined" && (localStorage.getItem("zh_theme") as "light" | "dark")) || "light",
-  dashboardMode: (typeof window !== "undefined" && (new URLSearchParams(window.location.search).get("mode") as DashboardMode)) ||
-    (typeof window !== "undefined" && (localStorage.getItem("zh_dashboard_mode") as DashboardMode)) ||
-    "demo",
+  // Fixed SSR-safe defaults; the saved/URL choices are applied after mount by hydratePrefs() (no hydration mismatch).
+  theme: "light",
+  dashboardMode: "demo",
 
   localT: () => {
     const { clock, mode, state } = get();
@@ -231,6 +232,25 @@ export const useStore = create<StoreState>()((set, get) => ({
       }
     }
     set({ dashboardMode });
+  },
+  hydratePrefs: () => {
+    const pick = <T extends string>(v: string | null, ok: readonly T[]): T | null => (ok.includes(v as T) ? (v as T) : null);
+    let savedMode: string | null = null;
+    let savedTheme: string | null = null;
+    try {
+      savedMode = localStorage.getItem("zh_dashboard_mode");
+      savedTheme = localStorage.getItem("zh_theme");
+    } catch {
+      // storage blocked: keep defaults
+    }
+    const modes = ["demo", "detailed"] as const;
+    const dashboardMode = pick(new URLSearchParams(window.location.search).get("mode"), modes) ?? pick(savedMode, modes);
+    const theme = pick(savedTheme, ["light", "dark"] as const);
+    if (dashboardMode) set({ dashboardMode });
+    if (theme) {
+      document.documentElement.classList.toggle("dark", theme === "dark");
+      set({ theme });
+    }
   },
   setTheme: (theme) => {
     if (typeof window !== "undefined") {

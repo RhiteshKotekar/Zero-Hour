@@ -1,5 +1,5 @@
 // REST client for samg.api (plan §5.2; exact shapes = §8 Phase 1-A log). No mock fallbacks: errors propagate.
-import type { TwinState } from "./types";
+import type { Topology, TwinState } from "./types";
 
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
 export const BACKEND_HINT = "backend offline — start `.venv/bin/python -m samg.api`";
@@ -10,6 +10,8 @@ export interface SessionSpec {
   seed?: number;
   experience?: number;
   use_cpsat?: boolean;
+  /** operator topology override from wave 1 (omit = the policy decides) */
+  topology?: Topology;
 }
 export type ControlAction = "play" | "pause" | "step" | "reset" | "speed";
 export interface InjectRequest {
@@ -146,6 +148,12 @@ export async function getSession(): Promise<{ session_id: string | null; state: 
 }
 export async function control(action: ControlAction, value?: number): Promise<{ session_id: string; clock: ServerClock }> {
   return req("/api/session/control", value === undefined ? { action } : { action, value });
+}
+/** Operator topology override for the live session (null hands the choice back to the policy). */
+export async function setTopology(
+  topology: Topology | null,
+): Promise<{ topology: Topology | null; applies_from_wave: number; effect: string; at: number }> {
+  return req("/api/session/topology", { topology });
 }
 export async function inject(r: InjectRequest): Promise<InjectResult> {
   return req("/api/session/inject", r);

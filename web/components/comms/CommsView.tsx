@@ -70,11 +70,13 @@ function CommsOverlay({ state }: { state: TwinState }) {
         <div className="cap">Coordination graph · wave {w?.number ?? "—"}</div>
         <div className="mt-0.5 flex items-baseline gap-2">
           <span className="text-[15px] font-extrabold tracking-wide">{topoLabel(w?.topology)}</span>
-          {sel && (
+          {w?.policy === "P0-OPERATOR" ? (
+            <span className="text-[11px] font-bold text-warn">forced by operator</span>
+          ) : sel?.score != null && sel.mean != null && sel.bonus != null ? (
             <span className="mono text-[11px] text-ink2">
               score {sel.score.toFixed(3)} <span className="text-faint">= {sel.mean.toFixed(3)} + {sel.bonus.toFixed(3)}</span>
             </span>
-          )}
+          ) : null}
         </div>
         <div className="mt-0.5 text-[10.5px] text-muted">
           {w ? `${w.policy} · ${w.graph?.links.length ?? 0} links · ${w.status === "preview" ? "running (preview)" : "committed"}` : "no wave yet"}

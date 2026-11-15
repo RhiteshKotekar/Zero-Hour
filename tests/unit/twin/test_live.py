@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 
 from samg.allocation import feasible_topologies
@@ -77,3 +78,148 @@ def test_live_session_is_deterministic_and_injections_keep_the_past() -> None:
     assert json.dumps(a, sort_keys=True) == json.dumps(b, sort_keys=True)
     assert a["kpis"]["orders_dispatched"] == len(a["orders"])
     assert any(t["states"] and t["states"][-1]["state"] == TaskState.VERIFIED_COMPLETE.value for t in a["tasks"])
+
+
+def test_operator_topology_override_forces_every_wave_and_never_trains_the_learner() -> None:
+    s = LiveSession("clean", script=[], topology="FUNCTIONAL_CELL")
+    before = s.world.policy.snapshot()
+    while not s.complete and s.t < 3000:
+        s.advance(20)
+    st = s.state()
+    assert s.complete and st["waves"]
+    assert all(w["topology"] == "FUNCTIONAL_CELL" and w["policy"] == "P0-OPERATOR" for w in st["waves"])
+    assert all(w["status"] == "committed" for w in st["waves"])
+    assert s.world.policy.snapshot() == before                       # operator decisions are not learned from
+    assert st["live"]["forced_topology"] == "FUNCTIONAL_CELL"
+    assert not any("differs" in n["text"] for n in s.drain_notices())  # commit == preview
+
+
+def test_operator_topology_override_mid_session_applies_from_the_next_wave() -> None:
+    s = LiveSession("judge_demo", experience=2)
+    s.advance(30)
+    first = s.state()["waves"][0]["topology"]
+    target = "FUNCTIONAL_CELL" if first != "FUNCTIONAL_CELL" else "HIERARCHICAL"
+    r = s.set_topology(target)
+    assert r["topology"] == target and r["applies_from_wave"] == 2
+    assert s.state()["waves"][0]["topology"] == first                # the executing wave keeps its plan
+    while not s.complete and s.t < 3000:
+        s.advance(20)
+    later = s.state()["waves"][1:]
+    assert later and all(w["topology"] == target and w["policy"] == "P0-OPERATOR" for w in later)
+    assert s.set_topology("auto")["topology"] is None and s.state()["live"]["forced_topology"] is None
+
+
+def test_operator_topology_override_rejects_unknown_and_falls_back_when_infeasible() -> None:
+    s = LiveSession("clean", script=[])
+    try:
+        s.set_topology("STAR")
+    except ValueError as e:
+        assert "unknown topology" in str(e)
+    else:
+        raise AssertionError("unknown topology accepted")
+    # an override the wave cannot plan (here: DISTRIBUTED with the core degree cap of 3) falls back and says so
+    cfg = copy.deepcopy(CFG)
+    cfg["samg"]["distributed_max_degree"] = 3
+    f = LiveSession("clean", script=[], topology="DISTRIBUTED", cfg=cfg)
+    assert f.state()["waves"][0]["topology"] in ("HIERARCHICAL", "FUNCTIONAL_CELL")
+    assert any("not feasible" in n["text"] for n in f.drain_notices())
+
+
+def test_distributed_is_eligible_for_the_twin_fleet_and_survives_a_robot_loss() -> None:
+    s = LiveSession("judge_demo", experience=2, topology="DISTRIBUTED")
+    while not s.complete and s.t < 3000:
+        s.advance(20)
+    st = s.state()
+    assert s.complete and [w["topology"] for w in st["waves"]] == ["DISTRIBUTED"] * len(st["waves"])
+    assert len(st["waves"]) >= 2                                      # incl. the re-plan after the robot failure
+    assert not any("not feasible" in n["text"] or "differs" in n["text"] for n in s.drain_notices())
+
+
+# --- traffic: collision-free motion, failure signal and alternative paths ------------------------------
+
+
+def _positions(state: dict, t: float) -> dict[str, tuple[float, float]]:
+    """Every mobile robot's interpolated position at ``t`` (as the 3D view draws it)."""
+    out = {}
+    for r in state["robots"]:
+        if not r["mobile"]:
+            continue
+        cur = None
+        for sg in r["segments"]:
+            if sg["t0"] <= t:
+                cur = sg
+            else:
+                break
+        if cur is None:
+            continue
+        if cur["kind"] == "move" and cur.get("path") and cur["t1"] is not None and t < cur["t1"]:
+            p, n = cur["path"], len(cur["path"]) - 1
+            x = (t - cur["t0"]) / max(cur["t1"] - cur["t0"], 1e-9) * n
+            i = min(int(x), n - 1)
+            f = x - i
+            out[r["id"]] = (p[i][0] + (p[i + 1][0] - p[i][0]) * f, p[i][1] + (p[i + 1][1] - p[i][1]) * f)
+        elif cur["kind"] == "move" and cur.get("path"):
+            out[r["id"]] = tuple(cur["path"][-1])
+        else:
+            out[r["id"]] = tuple(cur["cell"])
+    return out
+
+
+def _min_gap(state: dict, dt: float = 0.1) -> tuple[float, float, tuple[str, str] | None]:
+    best, when, pair = float("inf"), 0.0, None
+    t = 0.0
+    while t <= state["end_s"]:
+        pos = sorted(_positions(state, t).items())
+        for i, (a, pa) in enumerate(pos):
+            for b, pb in pos[i + 1:]:
+                d = ((pa[0] - pb[0]) ** 2 + (pa[1] - pb[1]) ** 2) ** 0.5
+                if d < best:
+                    best, when, pair = d, t, (a, b)
+        t += dt
+    return best, when, pair
+
+
+def _play(s: LiveSession) -> dict:
+    while not s.complete and s.t < 5000:
+        s.advance(20)
+    return s.state()
+
+
+def test_robots_never_overlap_in_any_live_scenario() -> None:
+    for scenario in ("clean", "judge_demo", "aisle_failure"):
+        s = LiveSession(scenario)
+        st = _play(s)
+        gap, when, pair = _min_gap(st)
+        assert gap >= 0.8 - 1e-6, (scenario, gap, when, pair)      # always at least ~one cell apart
+        assert s.locks.traffic.fallbacks == 0, scenario               # every plan was conflict-free
+        assert st["kpis"]["order_completion_rate"] == 1.0, scenario
+
+
+def test_robot_failing_in_an_aisle_blocks_it_and_others_take_an_alternative_path() -> None:
+    s = LiveSession("aisle_failure")
+    st = _play(s)
+    inj = st["live"]["injections"]
+    assert inj and inj[0]["kind"] == "robot_failure"
+    signal = [e for e in st["events"] if e["title"].startswith("Failure signal")]
+    rerouted = [e for e in st["events"] if " rerouted around " in e["title"] or " routes around failed " in e["title"]]
+    assert signal and rerouted and signal[0]["aisle"].startswith("AI-")
+    failed = inj[0]["target"]
+    assert all(e["robot"] != failed for e in rerouted)
+    assert any(c[1] == failed for c in s.locks.traffic.blocked.values())   # its cell is a permanent obstacle
+
+
+def test_auto_aisle_is_rejected_when_no_robot_is_inside_an_aisle() -> None:
+    s = LiveSession("clean", script=[])
+    res = s.inject("robot_failure", robot="auto:AISLE")      # t = 0: nobody has reached an aisle yet
+    assert not res["accepted"] and "aisle" in res["effect"]
+
+
+def test_topology_can_be_switched_between_waves_of_a_continuous_session() -> None:
+    s = LiveSession("continuous")
+    switches = [(150, "FUNCTIONAL_CELL"), (500, "DISTRIBUTED")]
+    while not s.complete and s.t < 5000:
+        if switches and s.t >= switches[0][0]:
+            s.set_topology(switches.pop(0)[1])
+        s.advance(10)
+    topo = [w["topology"] for w in s.state()["waves"]]
+    assert len(topo) >= 4 and "FUNCTIONAL_CELL" in topo and "DISTRIBUTED" in topo

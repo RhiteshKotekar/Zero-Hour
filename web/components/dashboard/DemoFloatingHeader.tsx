@@ -28,7 +28,7 @@ export function DemoFloatingHeader({
   const viol = state ? claimsAt(state, t).filter((c) => c.evidence === "DISPUTED").length : 0;
   const complete = mode === "replay" ? state != null && t >= end - 1e-3 : !!state?.live?.complete;
   const scenario = state ? (state.spec.scenario === "judge_demo" ? "Judge Demo" : state.spec.label ?? state.spec.scenario) : "—";
-  const topologyName = w ? topoLabel(w.topology) : "Hierarchical";
+  const topologyName = w ? topoLabel(w.topology) : "—";
 
   const orderCount = state?.orders.length ?? 0;
   const robotCount = state?.robots.filter((r) => r.mobile).length ?? 10;

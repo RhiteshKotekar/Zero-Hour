@@ -17,7 +17,7 @@ export function DemoHeader() {
   const viol = state ? claimsAt(state, t).filter((c) => c.evidence === "DISPUTED").length : 0;
   const complete = mode === "replay" ? state != null && t >= end - 1e-3 : !!state?.live?.complete;
   const scenario = state ? (state.spec.scenario === "judge_demo" ? "Judge Demo" : state.spec.label ?? state.spec.scenario) : "—";
-  const topologyName = w ? topoLabel(w.topology) : "Hierarchical";
+  const topologyName = w ? topoLabel(w.topology) : "—";
 
   return (
     <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-panel px-4 py-2.5 shadow-sm">

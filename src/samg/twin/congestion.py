@@ -11,6 +11,8 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass
 
+from samg.twin.traffic import Traffic
+
 
 @dataclass(frozen=True)
 class Hold:
@@ -23,6 +25,7 @@ class Hold:
 class AisleLocks:
     def __init__(self) -> None:
         self._holds: dict[str, list[Hold]] = defaultdict(list)
+        self.traffic = Traffic()          # space-time cell reservations of every robot (samg.twin.traffic)
 
     def earliest_free(self, aisle: str, t: float, duration: float, robot: str) -> tuple[float, list[str]]:
         """Earliest start >= ``t`` at which ``robot`` can hold ``aisle`` for ``duration`` seconds.

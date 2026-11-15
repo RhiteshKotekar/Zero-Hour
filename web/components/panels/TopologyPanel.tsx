@@ -4,6 +4,8 @@
 import { useState } from "react";
 import { fmtS, topoLabel, waveAt } from "@/lib/derive";
 import { useStore } from "@/lib/store";
+import * as api from "@/lib/api";
+import { attachLive, startSession } from "@/lib/live";
 import type { TwinState, Wave, Topology } from "@/lib/types";
 import { Badge, Card, CTX_NAMES, useSel, useTwin } from "@/components/shell/ui";
 import { ROLE_COLOR } from "@/lib/derive";
@@ -13,13 +15,21 @@ export interface TopologyPanelProps {
   bare?: boolean;
 }
 
+const REASON_HELP: Record<string, string> = {
+  UNREACHABLE_DEPENDENCY:
+    "Some task handoff has no connected pair of robots under this topology's link rules (e.g. distributed_max_degree), so no executable plan exists.",
+};
+
 export function TopologyPanel({ className, bare }: TopologyPanelProps) {
   const { state, t } = useTwin();
   const { sel, selRobot } = useSel();
   const select = useStore((s) => s.select);
 
-  // Human Operator Override state
-  const [overrideTopology, setOverrideTopology] = useState<Topology | null>(null);
+  // Human operator override. Live: the server's override (samg.twin.live set_topology) is the source of truth.
+  // Replay: a recording cannot change, so confirming starts a live session with the override from wave 1.
+  const mode = useStore((s) => s.mode);
+  const pushToast = useStore((s) => s.pushToast);
+  const [busy, setBusy] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [pendingTopology, setPendingTopology] = useState<Topology | null>(null);
 
@@ -36,11 +46,14 @@ export function TopologyPanel({ className, bare }: TopologyPanelProps) {
   const picked = sel?.kind === "wave" ? state.waves.find((w) => String(w.number) === sel.id) : undefined;
   const w = picked ?? current;
 
-  // Recommended topology by the autonomous bandit system
-  const recommendedTopology = w.topology;
+  const isLive = mode === "live" && !!state.live;
+  const overrideTopology = (isLive ? state.live?.forced_topology ?? null : null) as Topology | null;
+  const operatorWave = w.policy === "P0-OPERATOR";          // this wave really ran with the forced topology
+  const overridePending = !!overrideTopology && current.topology !== overrideTopology;
 
-  // Effective topology (manual override if active, otherwise system recommended)
-  const effectiveTopology = overrideTopology ?? recommendedTopology;
+  // Recommended topology by the autonomous bandit system (for an operator-forced wave: what it ran with)
+  const recommendedTopology = w.topology;
+  const effectiveTopology = w.topology;
 
   const offered = w.arms.filter((a) => a.offered);
   const learn = w.arms.some((a) => (a.bonus ?? 0) > 0 || (a.mean ?? 0) > 0);
@@ -54,27 +67,33 @@ export function TopologyPanel({ className, bare }: TopologyPanelProps) {
     setDialogOpen(true);
   };
 
-  const handleConfirmOverride = () => {
-    if (pendingTopology === recommendedTopology) {
-      setOverrideTopology(null); // Revert to autonomous recommendation
-    } else {
-      setOverrideTopology(pendingTopology);
+  const applyOverride = async (target: Topology | null, restart = false) => {
+    setBusy(true);
+    try {
+      if (!isLive) {
+        await startSession({ scenario: state.spec.scenario, seed: state.spec.seed, topology: target ?? undefined });
+        pushToast("ok", `Live session started${target ? ` with ${topoLabel(target)} forced from wave 1` : ""} — press Play`);
+      } else {
+        const r = await api.setTopology(target);
+        if (restart) {
+          await api.control("reset");
+          await attachLive();
+          pushToast("ok", `Session restarted${target ? ` with ${topoLabel(target)} forced from wave 1` : " under SAMG's own choice"}`);
+        } else {
+          pushToast(target ? "warn" : "ok", r.effect);
+        }
+      }
+      setDialogOpen(false);
+    } catch (e) {
+      pushToast("bad", `Topology override failed: ${(e as Error).message}`);
+    } finally {
+      setBusy(false);
     }
-    setDialogOpen(false);
+  };
 
-    // =========================================================================
-    // USER EXTENSION POINT:
-    // When backend logic is ready, call your API endpoint:
-    //
-    // import * as api from "@/lib/api";
-    // if (pendingTopology && pendingTopology !== recommendedTopology) {
-    //   api.control("override_topology", { mission_id: w.mission_id, wave: w.number, topology: pendingTopology })
-    //     .catch((err) => console.error("Topology override error:", err));
-    // } else {
-    //   api.control("reset_topology", { mission_id: w.mission_id, wave: w.number })
-    //     .catch((err) => console.error("Reset topology error:", err));
-    // }
-    // =========================================================================
+  const handleConfirmOverride = (restart = false) => {
+    void applyOverride(pendingTopology === recommendedTopology && !overrideTopology ? null : pendingTopology, restart);
+
   };
 
   const content = (
@@ -113,12 +132,13 @@ export function TopologyPanel({ className, bare }: TopologyPanelProps) {
                 Override: <span className="font-bold">{topoLabel(overrideTopology)}</span>
               </span>
               <span className="text-[10px] text-muted">
-                (Rec: {topoLabel(recommendedTopology)})
+                {overridePending ? "(pending · applies from the next wave)" : "(in force)"}
               </span>
               <button
                 className="btn text-[11px] text-warn hover:underline ml-1"
-                onClick={() => setOverrideTopology(null)}
-                title="Revert to autonomous system recommendation"
+                onClick={() => void applyOverride(null)}
+                disabled={busy}
+                title="Hand the topology choice back to SAMG's policy (from the next wave)"
               >
                 Reset to Auto
               </button>
@@ -195,8 +215,13 @@ export function TopologyPanel({ className, bare }: TopologyPanelProps) {
                         </span>
                       )}
                       <span className="text-[10px] text-muted mt-1">
-                        {isEligible ? (learn ? `Score: ${(arm?.score ?? 0).toFixed(3)}` : "Eligible") : "Ineligible"}
+                        {isEligible ? (learn ? `Score: ${(arm?.score ?? 0).toFixed(3)}` : "Eligible") : "Not feasible"}
                       </span>
+                      {!isEligible && arm?.reasons.length ? (
+                        <span className="mono mt-0.5 text-[8.5px] leading-tight text-bad" title={REASON_HELP[arm.reasons[0]] ?? arm.reasons[0]}>
+                          {arm.reasons.join(", ")}
+                        </span>
+                      ) : null}
                     </button>
                   );
                 })}
@@ -225,23 +250,49 @@ export function TopologyPanel({ className, bare }: TopologyPanelProps) {
               </div>
             )}
 
+            {/* When it takes effect */}
+            <div className="rounded-xl border border-line bg-panel2 p-2.5 text-[10.5px] leading-relaxed text-ink2">
+              {isLive ? (
+                <>
+                  <b>Live session.</b> A wave that is already executing keeps its plan; the override applies from the next
+                  wave SAMG plans. Use <b>Restart with it</b> to run the whole mission under it from wave 1. Operator-forced
+                  waves never update the protected LinUCB policy.
+                </>
+              ) : (
+                <>
+                  <b>This is a recorded replay</b> and cannot change. Confirming starts a <b>live session</b> of{" "}
+                  <span className="mono">{state.spec.scenario}</span> (seed {state.spec.seed}) with this topology forced from
+                  wave 1 (backend required).
+                </>
+              )}
+            </div>
+
             {/* Modal Actions */}
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-line">
               <button className="btn text-[11px]" onClick={() => setDialogOpen(false)}>
                 Cancel
               </button>
+              {isLive && pendingTopology && (
+                <button className="btn text-[11px]" disabled={busy} onClick={() => handleConfirmOverride(true)}>
+                  Restart with it
+                </button>
+              )}
               <button
-                disabled={!pendingTopology}
+                disabled={!pendingTopology || busy}
                 className={`btn text-[11px] font-semibold ${
                   pendingTopology !== recommendedTopology
                     ? "!bg-warn !border-warn !text-white hover:opacity-90"
                     : "primary"
                 }`}
-                onClick={handleConfirmOverride}
+                onClick={() => handleConfirmOverride(false)}
               >
-                {pendingTopology === recommendedTopology
-                  ? `Apply System Recommendation (${topoLabel(recommendedTopology)})`
-                  : `Confirm Force to ${topoLabel(pendingTopology)}`}
+                {busy
+                  ? "Applying…"
+                  : !isLive
+                    ? `Start live with ${topoLabel(pendingTopology)}`
+                    : pendingTopology === recommendedTopology && !overrideTopology
+                      ? `Keep System Choice (${topoLabel(recommendedTopology)})`
+                      : `Force ${topoLabel(pendingTopology)}`}
               </button>
             </div>
           </div>
@@ -251,10 +302,10 @@ export function TopologyPanel({ className, bare }: TopologyPanelProps) {
       {/* Graph and Arms Decision */}
       <div className="grid grid-cols-[190px_1fr] border-b border-line">
         <div className="flex items-center justify-center border-r border-line bg-panel2/40 p-2">
-          <TopoGraph state={state} w={w} selRobot={selRobot} forcedTopology={overrideTopology} />
+          <TopoGraph state={state} w={w} selRobot={selRobot} />
         </div>
         <div className="min-w-0 p-3">
-          <div className="cap mb-1.5">{learn ? "LinUCB score = mean + bonus" : "Fixed baseline"}</div>
+          <div className="cap mb-1.5">{operatorWave ? "Operator-forced wave (no learning)" : learn ? "LinUCB score = mean + bonus" : "Fixed baseline"}</div>
           <div className="space-y-1.5">
             {w.arms.map((a) => {
               const isOverriddenArm = overrideTopology === a.topology;
@@ -322,16 +373,21 @@ export function TopologyPanel({ className, bare }: TopologyPanelProps) {
 
       {/* Decision Banner (Autonomous vs Operator Override) */}
       <div className={`flex items-center justify-between border-b border-line px-3.5 py-2 text-[11.5px] ${
-        overrideTopology ? "bg-warn-bg/50 text-ink" : "bg-samg-bg text-ink"
+        overrideTopology || operatorWave ? "bg-warn-bg/50 text-ink" : "bg-samg-bg text-ink"
       }`}>
         <div className="flex items-center gap-2">
-          <Badge cls={overrideTopology ? "warn" : "samg"}>
-            {overrideTopology ? "OPERATOR OVERRIDE" : w.policy.includes("LinUCB") || learn ? "ADAPTIVE DECISION" : "FIXED POLICY"}
+          <Badge cls={overrideTopology || operatorWave ? "warn" : "samg"}>
+            {operatorWave ? "OPERATOR OVERRIDE" : overrideTopology ? "OVERRIDE PENDING" : w.policy.includes("LinUCB") || learn ? "ADAPTIVE DECISION" : "FIXED POLICY"}
           </Badge>
           <span className="min-w-0">
-            {overrideTopology ? (
+            {operatorWave ? (
               <>
-                Forced <b className="text-[12px]">{topoLabel(overrideTopology)}</b> (System recommendation: {topoLabel(recommendedTopology)})
+                Wave {w.number} ran with <b className="text-[12px]">{topoLabel(w.topology ?? "none")}</b>, forced by the operator · protected policy not updated
+              </>
+            ) : overrideTopology ? (
+              <>
+                <b className="text-[12px]">{topoLabel(overrideTopology)}</b> forced from the next wave · this wave: {topoLabel(w.topology ?? "none")} by{" "}
+                <span className="mono text-[11px]">{w.policy}</span>
               </>
             ) : (
               <>
@@ -351,7 +407,8 @@ export function TopologyPanel({ className, bare }: TopologyPanelProps) {
         {overrideTopology && (
           <button
             className="text-[11px] font-semibold text-warn hover:underline"
-            onClick={() => setOverrideTopology(null)}
+            onClick={() => void applyOverride(null)}
+            disabled={busy}
           >
             Revert to Recommended
           </button>

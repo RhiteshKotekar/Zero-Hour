@@ -35,9 +35,10 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
-from samg.domain import PolicyMode, TaskState
+from samg.domain import PolicyMode, TaskState, TopologyName
 from samg.evaluation.attacks import AttackConfig
 from samg.learning import ARM_ORDER
+from samg.learning.fixed import FixedTopologyPolicy
 from samg.orchestration import World
 from samg.twin.adapter import (
     MS,
@@ -67,6 +68,16 @@ ENV_INJECTIONS = ("comm_failure", "aisle_blockage", "inventory_unavailable")
 RUNS_DIR = Path(__file__).resolve().parents[3] / "artifacts" / "runs"
 _RUN_ID = re.compile(r"^[A-Za-z0-9_.-]{1,80}$")
 _EPS = 1e-9
+OPERATOR_KIND = "P0-OPERATOR"     # policy_kind of a wave whose topology the operator forced (P0* = no learning)
+
+
+def _topology(value: str | None) -> TopologyName | None:
+    if value in (None, "", "auto"):
+        return None
+    try:
+        return TopologyName(str(value).upper())
+    except ValueError:
+        raise ValueError(f"unknown topology {value}; expected one of {[t.value for t in TopologyName]} or auto") from None
 
 
 @dataclass
@@ -86,10 +97,16 @@ class _Running:
     delays: dict[str, float] = field(default_factory=dict)
     attack: AttackConfig | None = None
     preview: Wave | None = None
+    forced_topology: TopologyName | None = None     # operator override fixed for this wave
 
     def overrides(self) -> WaveOverrides:
         return WaveOverrides(agent_down_at_ms=dict(self.down), forced=frozenset(self.forced),
                              delays_ms=dict(self.delays), attack=self.attack)
+
+
+def _same_trace(a: list[tuple], b: list[tuple], tol_ms: float = 5.0) -> bool:
+    """Equal transitions, allowing millisecond rounding from the physical-delay feedback loop."""
+    return len(a) == len(b) and all(x[:4] == y[:4] and abs(x[4] - y[4]) <= tol_ms for x, y in zip(a, b, strict=True))
 
 
 def _transitions(wave: Wave, before_ms: float | None = None) -> list[tuple]:
@@ -104,9 +121,12 @@ class LiveSession:
 
     def __init__(self, scenario: str = "judge_demo", policy: str | None = None, seed: int | None = None,
                  experience: int | None = None, use_cpsat: bool = True, cfg: dict[str, Any] | None = None,
-                 script: list[dict[str, Any]] | None = None) -> None:
+                 script: list[dict[str, Any]] | None = None, topology: str | None = None) -> None:
         self.params = dict(scenario=scenario, policy=policy, seed=seed, experience=experience, use_cpsat=use_cpsat,
-                           cfg=cfg, script=script)
+                           cfg=cfg, script=script, topology=topology)
+        # operator override: every wave planned while set uses this topology instead of the policy's choice
+        self.forced_topology: TopologyName | None = _topology(topology)
+        self.forced_since: float | None = 0.0 if self.forced_topology else None
         self.cfg = cfg = cfg or load_config()
         if scenario not in cfg["scenarios"]:
             raise ValueError(f"unknown scenario {scenario}")
@@ -267,7 +287,7 @@ class LiveSession:
         self._last_plan_key = key
         self.current = _Running(number=len(self.waves) + 1, task_ids=remaining, done=frozenset(self.done),
                                 states=dict(self.states), locks=copy.deepcopy(self.locks), t_offset=self.t,
-                                excluded=self.excluded, env=self.env)
+                                excluded=self.excluded, env=self.env, forced_topology=self.forced_topology)
         self._preview()
 
     def _wave_args(self, cur: _Running) -> dict[str, Any]:
@@ -280,18 +300,34 @@ class LiveSession:
         """Run the current wave on a scratch world (policy clone, in-memory store): no learning persists."""
         cur = self.current
         assert cur is not None
-        scratch = World.create(_clone(self.world.policy), mode=PolicyMode.PROTECTED)
-        cur.preview = run_wave(cur.env, scratch, self.tasks, cur.task_ids, locks=copy.deepcopy(cur.locks),
-                               **self._wave_args(cur))
+        cur.preview = run_wave(cur.env, self._world_for(cur, scratch=True), self.tasks, cur.task_ids,
+                               locks=copy.deepcopy(cur.locks), **self._wave_args(cur))
+        if cur.forced_topology is not None and cur.preview.record.decision.topology is None:
+            # the forced topology has no feasible plan for this wave: say so and let the policy decide
+            self._notice("warn", f"Wave {cur.number}: {cur.forced_topology.value} is not feasible for this wave "
+                                 "(no valid graph/plan); SAMG's own choice is used")
+            cur.forced_topology = None
+            cur.preview = run_wave(cur.env, self._world_for(cur, scratch=True), self.tasks, cur.task_ids,
+                                   locks=copy.deepcopy(cur.locks), **self._wave_args(cur))
         cur.preview.status = "preview"
         self._touch()
+
+    def _world_for(self, cur: _Running, *, scratch: bool) -> World:
+        """The world a wave runs in. An operator-forced wave uses a fixed policy in its own audit store, so the
+        protected learner is never updated from a decision it did not make."""
+        if cur.forced_topology is not None:
+            return World.create(FixedTopologyPolicy(cur.forced_topology, kind=OPERATOR_KIND), mode=PolicyMode.PROTECTED)
+        if scratch:
+            return World.create(_clone(self.world.policy), mode=PolicyMode.PROTECTED)
+        return self.world
 
     def _commit(self) -> None:
         """Re-run the finished wave on the real world (same inputs); the learner updates only here."""
         cur = self.current
         assert cur is not None and cur.preview is not None
         locks = copy.deepcopy(cur.locks)
-        wave = run_wave(cur.env, self.world, self.tasks, cur.task_ids, locks=locks, **self._wave_args(cur))
+        wave = run_wave(cur.env, self._world_for(cur, scratch=False), self.tasks, cur.task_ids, locks=locks,
+                        **self._wave_args(cur))
         if _transitions(wave) != _transitions(cur.preview) or \
                 wave.record.decision.topology is not cur.preview.record.decision.topology:
             log.warning("wave %s commit differs from its preview", cur.number)
@@ -312,6 +348,38 @@ class LiveSession:
         return st if st.failed else replace(st, free_at=INF, failed=True, failed_at=t)
 
     # --- injections --------------------------------------------------------------------
+
+    def set_topology(self, topology: str | None) -> dict[str, Any]:
+        """Operator topology override (``None``/``"auto"`` hands the choice back to the policy).
+
+        The running wave is re-planned with it when none of its tasks has started yet (the past is unchanged);
+        otherwise it applies from the next wave. Returns ``{topology, applies_from_wave, effect}``."""
+        with self.lock:
+            topo = _topology(topology)
+            self.forced_topology = topo
+            self.forced_since = self.t if topo else None
+            cur = self.current
+            label = topo.value if topo else "SAMG's own choice"
+            if cur is not None and cur.preview is not None and cur.forced_topology is not topo:
+                started = cur.preview.record.trace is not None and any(
+                    s <= self.t + _EPS for s, _e, _f, _r in self._windows(cur).values())
+                if not started:
+                    cur.forced_topology = topo
+                    self._preview()
+                    applied = cur.preview.record.decision.topology  # type: ignore[union-attr]
+                    effect = f"wave {cur.number} re-planned with {applied.value if applied else 'no topology'}"
+                    nxt = cur.number
+                else:
+                    effect = f"wave {cur.number} is already executing; {label} applies from wave {cur.number + 1}"
+                    nxt = cur.number + 1
+            else:
+                nxt = (cur.number + 1) if cur is not None else len(self.waves) + 1
+                effect = f"{label} applies from wave {nxt}"
+            msg = f"Operator topology override: {topo.value}" if topo else "Topology override cleared"
+            self._notice("warn" if topo else "ok", f"{msg} · {effect}")
+            self._touch()
+            return {"topology": topo.value if topo else None, "applies_from_wave": nxt, "effect": effect,
+                    "at": round(self.t, 3)}
 
     def inject(self, kind: str, *, robot: str | None = None, aisle: str | None = None, sku: str | None = None,
                task: str | None = None, delay_s: float | None = None, source: str = "operator") -> dict[str, Any]:
@@ -335,7 +403,8 @@ class LiveSession:
                                       "delayed_task": self._inject_delay}[kind](cur, robot=robot, task=task,
                                                                                  delay_s=delay_s)
                     cut = (self.t - cur.t_offset) * MS
-                    if cur.preview is not before and _transitions(cur.preview, cut) != _transitions(before, cut):
+                    if cur.preview is not before and not _same_trace(_transitions(cur.preview, cut),
+                                                                    _transitions(before, cut)):
                         log.warning("injection %s changed the trace before t=%.1f", kind, self.t)
                         self._notice("warn", f"{INJECTION_KINDS[kind]}: re-run changed events before t (logged)")
             except _Reject as r:
@@ -370,9 +439,39 @@ class LiveSession:
         pick = (running or upcoming or [None])[0]
         return (pick[1], pick[2]) if pick else None
 
+    def _cell_at(self, cur: _Running, rid: str, t: float) -> tuple[int, int] | None:
+        """Where the running wave's preview puts ``rid`` at ``t`` (its physical replay)."""
+        rep = cur.preview.replay if cur.preview else None
+        if rep is None:
+            return None
+        for sg in rep.segments.get(rid, []):
+            if sg.t0 <= t < sg.t1:
+                if sg.kind == "move" and sg.path:
+                    n = len(sg.path) - 1
+                    i = min(n, int((t - sg.t0) / max(sg.t1 - sg.t0, 1e-9) * n + 0.5))
+                    return sg.path[i]
+                return sg.cell
+        return None
+
+    def _robot_in_aisle(self, cur: _Running) -> str:
+        """auto:AISLE — a robot executing a task inside a narrow pick aisle right now."""
+        aisle_of = self.env.layout.aisle_of
+        avoid = set(self.excluded) | set(cur.down) | ({cur.attack.compromised_agent} if cur.attack else set())
+        for tid, (s0, e0, failed, rid) in sorted(self._windows(cur).items(), key=lambda x: (x[1][0], x[0])):
+            if rid in avoid or failed or not (s0 <= self.t < e0):
+                continue
+            cell = self._cell_at(cur, rid, self.t)
+            if cell is not None and tuple(cell) in aisle_of:
+                return rid
+        raise _Reject("no robot is inside a pick aisle right now")
+
     def _robot(self, spec: str | None, kind: str | None = None) -> str:
         if not spec:
             raise _Reject("needs a robot (id or auto:KIND)")
+        if spec == "auto:AISLE":
+            if self.current is None or self.current.preview is None:
+                raise _Reject("no wave is running")
+            return self._robot_in_aisle(self.current)
         if spec.startswith("auto:"):
             cur = self.current
             hit = self._task_for(cur, kind=spec.split(":", 1)[1], avoid=set(self.excluded) | set(cur.down)
@@ -502,6 +601,8 @@ class LiveSession:
             "script": [dict(s) for s in self.script], "injections": list(self.injections),
             "pending_orders": [o for o in self.unplanned],
             "planning": "running" if cur else "idle",
+            "forced_topology": self.forced_topology.value if self.forced_topology else None,
+            "forced_since": None if self.forced_since is None else round(self.forced_since, 3),
         }
         return st
 

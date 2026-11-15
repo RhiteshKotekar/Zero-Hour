@@ -225,7 +225,7 @@ def test_congestion_is_measured_and_fed_back(clean_state: dict) -> None:
     w = clean_state["waves"][0]
     assert w["physical_passes"] >= 1
     c = clean_state["congestion"][0]
-    assert c["t1"] > c["t0"] and c["blockers"] and c["aisle"].startswith("AI-")
+    assert c["t1"] > c["t0"] and c["blockers"] and c["aisle"]          # aisle id or floor zone of the wait
 
 
 # --- failures, replanning, witness, security --------------------------------------------------

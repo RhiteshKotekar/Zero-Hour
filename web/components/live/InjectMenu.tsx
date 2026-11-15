@@ -109,6 +109,7 @@ export function InjectMenu({ className }: InjectMenuProps) {
                     <select className={field} value={p.robot} onChange={set("robot")}>
                       <option value="auto:TRANSPORT">auto: robot on a TRANSPORT task</option>
                       <option value="auto:PICK">auto: robot on a PICK task</option>
+                      <option value="auto:AISLE">auto: robot inside a pick aisle (blocks it; others reroute)</option>
                       {meta.robots
                         .filter((r) => r.physical)
                         .map((r) => (

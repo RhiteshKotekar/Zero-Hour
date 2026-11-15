@@ -252,7 +252,7 @@ small edits in `src/samg/twin/adapter.py`, `src/samg/twin/scenarios.py`, `config
 
 ### Phase 2-C — Panels & page shell (owns `web/app/page.tsx`, `web/app/layout.tsx`, `web/components/panels/**`,
 `web/components/shell/**`)
-- [ ] full layout §6.4 with all panels §6.6, selection interactions (click panel rows ↔ 3D highlight), toasts
+- [x] full layout §6.4 with all panels §6.6, selection interactions (click panel rows ↔ 3D highlight), toasts
 - **Check:** `npm run build`; screenshot of the page in replay at 2 times (≈60 s and end).
 
 ### Phase 2-D — Live wiring, comms 3D, demo, compare, replays (owns `web/lib/api.ts`, `web/lib/ws.ts`,
@@ -282,7 +282,7 @@ Backend tests for live session, frontend smoke (build + Playwright optional), fu
 | 0 Plan & port | ✅ done |
 | 1-A Live backend | ✅ done |
 | 1-B Frontend + 3D | ✅ done |
-| 2-C Panels | ⬜ |
+| 2-C Panels | ✅ done |
 | 2-D Live/comms/demo | ⬜ |
 | 3 Integration | ⬜ |
 | 4 Validation | ⬜ (on request) |
@@ -390,6 +390,40 @@ Log (append newest last; date · phase · agent · summary · files · check · 
   rings come from `events` ("Witness verified …"); `witness_events` are not used by the ops view. 60 fps not measured
   on real hardware (swiftshader only); scene uses instancing (≈10 instanced meshes for racks/structures), one canvas
   floor texture, per-frame robot updates via refs only.
+* 2026-11-15 · P2-C · panels agent · page shell + all panels done (replay mode verified).
+  **Files:** `web/app/page.tsx` (full §6.4 layout; URL params `?t= ?paused=1 ?speed= ?replay=<url> ?live=1`),
+  `web/app/layout.tsx` (imports `components/shell/shell.css`), `web/next.config.ts` (`devIndicators: false`),
+  `web/components/panels/{Header,ControlBar,PipelineStrip,KpiStrip,MissionPanel,TopologyPanel,AllocationTable,
+  SecurityPipeline,EventStream,FleetList,ProvenancePanel}.tsx` (stubs replaced, export names kept),
+  `web/components/shell/{ui.tsx,Stage.tsx,BottomTabs.tsx,Toasts.tsx,shell.css}` (new). Tiny additions outside the lane:
+  `lib/derive.ts` `selectionRobot(state, sel, t)` (robot / task assignee / claim signer) used by
+  `warehouse3d/Robots.tsx` (selection ring) and `warehouse3d/CameraRig.tsx` (`focusSelection`) so task/claim
+  selections highlight and focus the robot in 3D.
+  **Behaviour:** header chips incl. LIVE/REPLAY from store `mode`, nav to /compare and /replays; control bar
+  (SessionDrawer · Start/Pause · Step +5 s · Reset · speeds · timeline with wave bands + bad/sec/congestion markers,
+  click/drag seek in replay · clock · InjectMenu · OPS|COMMS → `setView`); in live mode play/pause/step/reset/speed call
+  `lib/api.control` and apply the returned clock; `useLiveConnection(?live=1 || mode==="live")` is mounted in the
+  page. Stage = `WarehouseView` or `CommsView` (both next/dynamic ssr:false, absolute inset-0 so the canvas fills) +
+  `DemoBanner` slot (top centre) + toasts (bottom-left; congestion, robot/task failure, replanning, security,
+  dispatch; fire only on forward progress ≤ 30 sim-s; click → select + focus). Right rail: Mission (counters, orders
+  with per-task step bars, order → task → robot lineage when the order/task is selected or "Lineage" is on) and
+  Coordination topology (graph from `waves[i].graph`, LinUCB mean+bonus bars over eligible arms, ineligibility
+  reasons in red, decision chip with the score sum, context vector + "no explanation is generated", wave history incl.
+  REPLANNED waves, excluded robots, reward/episode/learning only after wave end; click a history row = view that wave).
+  KPI strip = 10 KPIs of `kpisAt`. Bottom tabs: Allocation (current wave, ↺ reassigned rows, selection/related
+  highlight), Security (5-step flow; step 5 "learning" lit only after the wave end; claim list click = focus claim;
+  selecting a claim anywhere opens the tab), Events (filter chips; security event click → select robot + camera
+  focus), Fleet (click select, double-click follow), Provenance (all values from the state: spec, contract versions,
+  per-wave solver/episode/reward/learning, record counts, "simulated, not mock" note). Orders are shown only once
+  `arrival_s ≤ t`; everything else is revealed by t as well.
+  **Check:** `npm run build` passes; eslint clean on the touched files; dev server + headless Chrome: screenshots at
+  t=60 s and t=452 s (end) and at t=300 s with the Security / Events tabs; event click → camera flies to R03; browser
+  console clean apart from three's `THREE.Clock` deprecation.
+  **Open issues:** at ≈1000 px viewport height the right rail is tight (Mission and Topology scroll internally);
+  the 3D iso camera leaves empty margin around the floor (1-B `isoView` fit, not changed); `--screenshot` mode of
+  headless Chrome lays out at a shorter viewport and then resizes, so the canvas can look shorter in those shots (a CDP
+  screenshot shows it filling the stage). The "◉ Auto demo" button is expected inside 2-D's components (SessionDrawer
+  / DemoBanner) — the shell only provides the slots. Order selection has no 3D highlight (no single robot).
 
 ## 9. Mock register
 

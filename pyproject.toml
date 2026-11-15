@@ -18,7 +18,7 @@ dependencies = [
     "pydantic>=2.6",
     "PyYAML>=6.0",
     "SQLAlchemy>=2.0",
-    "streamlit>=1.33",
+    "streamlit>=1.40",
 ]
 
 [project.optional-dependencies]

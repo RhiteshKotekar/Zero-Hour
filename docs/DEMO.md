@@ -3,7 +3,7 @@
 Branch `integration/demo`. This is the barebones Phase 2 vertical slice (`THREE_PERSON_PLAN.md` §5): one
 mission goes through the whole loop, a short stream shows LinUCB learning, and the signed false-report
 attack (brief §9.2) is run against a protected and a vulnerable learner side by side. It is a terminal
-demo; the Streamlit views (D018) are not built yet.
+demo; the Streamlit views (D018) are described in the Dashboard section below.
 
 ## Setup
 

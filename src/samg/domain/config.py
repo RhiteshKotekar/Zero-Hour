@@ -34,7 +34,7 @@ class TopologyCostConfig(SamgModel):
     link_cost: float = Field(
         default=0.25,
         ge=0,
-        description="Per undirected coordination link maintained by the topology (proposed D019).",
+        description="Per undirected coordination link maintained by the topology (D021).",
     )
     max_path_hops: int = Field(default=4, ge=1, description="Longer paths are treated as no permitted path.")
     handoff_delay_ms_per_hop: float = Field(default=120_000.0, ge=0, description="Simulated ms added per hop.")

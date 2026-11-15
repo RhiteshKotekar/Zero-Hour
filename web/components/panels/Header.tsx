@@ -4,6 +4,7 @@ import Link from "next/link";
 import { claimsAt, topoLabel, waveAt } from "@/lib/derive";
 import { useStore } from "@/lib/store";
 import { useTwin } from "@/components/shell/ui";
+import { DashboardSwitch } from "@/components/dashboard/DashboardSwitch";
 
 export interface HeaderProps {
   className?: string;
@@ -59,6 +60,9 @@ export function Header({ className }: HeaderProps) {
           Replays
         </Link>
       </nav>
+
+      {/* View Mode Switch */}
+      <DashboardSwitch />
 
       {/* Clean Telemetry Ribbon (Proper whitespace, no heavy boxy frames) */}
       <div className="ml-auto flex min-w-0 items-center gap-4 text-left">

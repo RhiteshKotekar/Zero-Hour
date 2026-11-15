@@ -2,13 +2,14 @@
 # record the config hash before the held-out test run. Never retune after it.
 version: exp-v1
 master_seed: 2026
-n_dev: 10
-n_train: 60
-n_test: 20
+n_dev: 40          # dev: 20-mission learning stream + 20-mission frozen eval for alpha tuning
+n_train: 120
+n_test: 60          # brief §12.7 asks >= 20 paired held-out seeds; runtime allows 60
 holdout_fraction: 0.2
-alpha: 0.5          # LinUCB exploration
+alpha: 1.0          # LinUCB exploration; chosen on dev from {0.1, 0.3, 0.5, 1.0} by scripts/run_experiment_a.py
 lam: 1.0            # LinUCB ridge
 warmup_per_arm: 2   # seeded balanced warm-up
 ucb_c: 1.0          # UCB1 exploration
 bootstrap_seed: 7
-frozen: false
+frozen: true
+# config_hash: 8b98c35a16a6d069  (experiment + topology_costs + allocation + reward; written at freeze)

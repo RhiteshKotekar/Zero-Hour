@@ -56,9 +56,9 @@ class ExperimentConfig(SamgModel):
 
     version: str = "exp-v1"
     master_seed: int = 2026
-    n_dev: int = Field(default=10, ge=0)
-    n_train: int = Field(default=60, ge=1)
-    n_test: int = Field(default=20, ge=1)
+    n_dev: int = Field(default=40, ge=0)
+    n_train: int = Field(default=120, ge=1)
+    n_test: int = Field(default=60, ge=1)
     holdout_fraction: float = Field(default=0.2, gt=0, lt=1)
     alpha: float = Field(default=0.5, ge=0)
     lam: float = Field(default=1.0, gt=0)
@@ -123,6 +123,8 @@ class PolicyResult(BaseModel):
     selection_by_family: dict[str, dict[str, int]]
     regret: Summary
     reward_by_family: dict[str, Summary]
+    metric_means: dict[str, float] = Field(default_factory=dict,
+                                           description="Mean of each executor metric over feasible runs.")
 
 
 class ExperimentResult(BaseModel):
@@ -197,8 +199,11 @@ class _Runner:
 
     def eligible(self, scenario: Scenario) -> list[TopologyName]:
         if scenario.scenario_id not in self._eligible_cache:
-            # D030: an arm is offered only if a feasible plan exists for it.
-            self._eligible_cache[scenario.scenario_id] = feasible_topologies(scenario, self.costs)[0]
+            # D030: an arm is offered only if a feasible plan exists for it. An executor that
+            # owns its own cost/allocation settings (and plan cache) answers this itself.
+            own = getattr(self.executor, "eligible", None)
+            self._eligible_cache[scenario.scenario_id] = (
+                list(own(scenario)) if callable(own) else feasible_topologies(scenario, self.costs)[0])
         return self._eligible_cache[scenario.scenario_id]
 
     def step(self, *, split: str, name: str, policy: TopologyPolicy, step: int, scenario: Scenario,
@@ -249,6 +254,11 @@ def _policy_result(name: str, records: list[RunRecord], counterfactual: dict[str
         if r.applicable and r.feasible and r.reward is not None:
             by_family[fam].append(r.reward)
     regret = oracle_regret(selected, counterfactual)
+    metric_values: dict[str, list[float]] = defaultdict(list)
+    for r in mine:
+        if r.applicable and r.feasible:
+            for k, v in r.metrics.items():
+                metric_values[k].append(float(v))
     return PolicyResult(
         policy=name,
         reward=summarize(rewards, seed=seed),
@@ -258,6 +268,7 @@ def _policy_result(name: str, records: list[RunRecord], counterfactual: dict[str
         selection_by_family={f: dict(c) for f, c in sorted(sel_family.items())},
         regret=summarize(list(regret.values()), seed=seed),
         reward_by_family={f: summarize(v, seed=seed) for f, v in sorted(by_family.items())},
+        metric_means={k: float(np.mean(v)) for k, v in sorted(metric_values.items())},
     )
 
 
@@ -268,10 +279,15 @@ def run_experiment_a(
     costs: TopologyCostConfig | None = None,
     extra_hash_configs: Sequence[SamgModel] = (),
     progress: Callable[[str], None] | None = None,
+    splits: dict[str, list[tuple[Scenario, bool]]] | None = None,
 ) -> ExperimentResult:
-    """Run Experiment A (P3 vs P1) and B (P3 vs P2) on one shared protocol."""
+    """Run Experiment A (P3 vs P1) and B (P3 vs P2) on one shared protocol.
+
+    ``splits`` overrides ``build_splits(cfg)`` (needs ``train`` and ``test``); used only for
+    ablations on design-seed missions, never for the reported held-out run.
+    """
     costs = costs or TopologyCostConfig()
-    splits = build_splits(cfg)
+    splits = splits if splits is not None else build_splits(cfg)
     runner = _Runner(executor, costs)
     records: list[RunRecord] = []
     say = progress or (lambda _msg: None)
@@ -343,3 +359,77 @@ def run_experiment_a(
         blocked_updates=dict(runner.blocked),
         records=records,
     )
+
+
+# --- dev tuning (brief §12.2 step 3) -----------------------------------------
+
+
+class DevAlphaResult(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    alpha: float
+    eval_reward: Summary
+    selection_counts: dict[str, int]
+    updates: int
+
+
+class DevTuningResult(BaseModel):
+    """LinUCB ``alpha`` chosen on the DEV split only; train and test missions are never touched."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    grid: tuple[float, ...]
+    n_dev_stream: int
+    n_dev_eval: int
+    results: list[DevAlphaResult]
+    chosen_alpha: float
+    rule: str
+
+
+def tune_alpha_on_dev(
+    cfg: ExperimentConfig,
+    executor: MissionExecutor,
+    grid: Sequence[float],
+    *,
+    costs: TopologyCostConfig | None = None,
+    stream_fraction: float = 0.5,
+    progress: Callable[[str], None] | None = None,
+) -> DevTuningResult:
+    """Split the dev missions into a learning stream and a frozen evaluation block.
+
+    For each ``alpha`` a fresh LinUCB (same ``lam``/warm-up/seed as the main run) learns
+    online on the stream from ADMITTED episodes only, then is evaluated frozen on the
+    evaluation block. Rule (predeclared): highest mean ground-truth reward on the
+    evaluation block; ties (within 1e-9) go to the smaller ``alpha``.
+    """
+    if not grid:
+        raise ValueError("alpha grid must not be empty")
+    dev = build_splits(cfg)["dev"]
+    cut = int(round(len(dev) * stream_fraction))
+    stream, held = dev[:cut], dev[cut:]
+    if not stream or not held:
+        raise ValueError("dev split too small to tune: need missions in both stream and evaluation block")
+    runner = _Runner(executor, costs or TopologyCostConfig())
+    say = progress or (lambda _msg: None)
+    results: list[DevAlphaResult] = []
+    for alpha in sorted(float(a) for a in grid):
+        say(f"dev alpha={alpha}")
+        name = f"P3@{alpha}"
+        policy = make_policy("P3", {"alpha": alpha, "lam": cfg.lam, "warmup_per_arm": cfg.warmup_per_arm},
+                             seed=cfg.master_seed)
+        for i, (s, h) in enumerate(stream):
+            runner.step(split="dev", name=name, policy=policy, step=i, scenario=s, held_out=h, learn=True)
+        recs = [runner.step(split="dev-eval", name=name, policy=policy, step=i, scenario=s, held_out=h,
+                            learn=False) for i, (s, h) in enumerate(held)]
+        rewards = [r.reward for r in recs if r.applicable and r.feasible and r.reward is not None]
+        results.append(DevAlphaResult(
+            alpha=alpha, eval_reward=summarize(rewards, seed=cfg.bootstrap_seed),
+            selection_counts=dict(Counter(r.topology.value for r in recs if r.topology is not None)),
+            updates=runner.updates[name]))
+    best = results[0]
+    for r in results[1:]:
+        if (r.eval_reward.mean or float("-inf")) > (best.eval_reward.mean or float("-inf")) + 1e-9:
+            best = r
+    return DevTuningResult(grid=tuple(r.alpha for r in results), n_dev_stream=len(stream), n_dev_eval=len(held),
+                           results=results, chosen_alpha=best.alpha,
+                           rule="max dev-eval mean reward; ties -> smaller alpha")

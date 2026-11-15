@@ -61,8 +61,25 @@ def result():
     return run_experiment_a(SMALL, SyntheticExecutor())
 
 
-def test_committed_experiment_yaml_equals_defaults() -> None:
-    assert load_experiment() == ExperimentConfig()
+def test_committed_experiment_yaml_matches_defaults_or_its_freeze_hash() -> None:
+    """Unfrozen: the YAML equals the model defaults. Frozen: only the tuned ``alpha`` (and
+    ``frozen``) may differ, and the recorded ``# config_hash`` must still match every
+    hashed config, so no experiment, cost, allocation or reward setting drifts after the freeze."""
+    import re
+
+    from samg.domain import config_hash
+    from samg.domain.config import CONFIG_DIR, load_allocation, load_reward, load_topology_costs
+
+    cfg = load_experiment()
+    if not cfg.frozen:
+        assert cfg == ExperimentConfig()
+        return
+    assert cfg.model_copy(update={"alpha": ExperimentConfig().alpha, "frozen": False}) == ExperimentConfig(
+        **{k: v for k, v in cfg.model_dump().items() if k not in {"alpha", "frozen"}})
+    text = (CONFIG_DIR / "experiment.yaml").read_text(encoding="utf-8")
+    recorded = re.search(r"^# config_hash: (\w+)", text, flags=re.M)
+    assert recorded, "a frozen experiment.yaml must record its config hash"
+    assert recorded.group(1) == config_hash(cfg, load_topology_costs(), load_allocation(), load_reward())
 
 
 def test_splits_are_disjoint_and_hold_out_combos_only_at_test() -> None:
@@ -141,3 +158,17 @@ def test_paired_comparison_and_regret() -> None:
     c = paired_comparison("a", {"m1": 0.5, "m2": 0.7, "m3": 0.4}, "b", {"m1": 0.4, "m2": 0.7, "m4": 0.9}, seed=0)
     assert c.n_pairs == 2 and c.wins == 1 and c.ties == 1 and c.mean_diff == pytest.approx(0.05)
     assert oracle_regret({"m1": 0.5}, {"m1": {"H": 0.5, "D": 0.8}}) == {"m1": pytest.approx(0.3)}
+
+
+def test_dev_tuning_uses_dev_split_only_and_picks_by_rule() -> None:
+    from samg.evaluation.runner import tune_alpha_on_dev
+
+    cfg = ExperimentConfig(n_dev=12, n_train=4, n_test=4, warmup_per_arm=1)
+    ex = SyntheticExecutor()
+    tuning = tune_alpha_on_dev(cfg, ex, (1.0, 0.1, 0.5))
+    dev_ids = {s.scenario_id for s, _ in build_splits(cfg)["dev"]}
+    assert {sid for sid, _, _ in ex.calls} <= dev_ids
+    assert tuning.grid == (0.1, 0.5, 1.0)
+    assert tuning.n_dev_stream == 6 and tuning.n_dev_eval == 6
+    best = max(r.eval_reward.mean for r in tuning.results)
+    assert tuning.chosen_alpha == min(r.alpha for r in tuning.results if r.eval_reward.mean >= best - 1e-9)

@@ -123,6 +123,7 @@ def run(scenarios: list[str], seeds: list[int], rungs: list[str] | None = None,
     if training & set(seeds):
         raise ValueError(f"evaluation seeds overlap training seeds {sorted(training & set(seeds))}")
     rungs = rungs or [r.name for r in LADDER]
+    man = manifest(scenarios, rungs, seeds, cfg)  # recorded before running: the code state that produced the rows
     rows = []
     for sc in scenarios:
         for seed in seeds:
@@ -130,7 +131,7 @@ def run(scenarios: list[str], seeds: list[int], rungs: list[str] | None = None,
                 rows.append(run_one(sc, RUNGS[name], seed, cfg))
             if progress:
                 print(f"{sc} seed {seed}: done", flush=True)
-    return {"manifest": manifest(scenarios, rungs, seeds, cfg), "rows": rows, "summary": summarise(rows)}
+    return {"manifest": man, "rows": rows, "summary": summarise(rows)}
 
 
 def _fmt(s: dict[str, Any] | None, m: str) -> str:

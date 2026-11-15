@@ -34,9 +34,11 @@ The queue is worked in order, top to bottom. Each finished item that produces a 
 | 26 | queued | V | VAL-002: complete the INV-01…INV-09 trace table from the brief's §8.9 wording | Trace table filled |
 | 27 | done | A | Model v2 steps 1–2 (opt-in, D041): comm-loss task failure with one retry, real deadlines, relay queueing; design-seed landscape check. Evidence-gate change turned out unnecessary | Rules + 6 tests; demo and twin 3D state byte-identical; landscape verdict (R14) |
 | 28 | done | A | Conventional baseline core (`samg.baseline`, D042): greedy travel-aware dispatcher over the WMS controller star, claim-trusting execution, `run_mode(spec, mode, cfg, sim)` (no twin edits), opt-in common random numbers | Brief tests 1–6 + no-SAMG-mechanism guard pass; 407 tests; twin 3D state byte-identical (R15) |
-| 29 | queued | A | Warehouse scenarios W1–W6, `samg.experiments.run` / `.compare`, results + manifest | 10-seed comparison runs |
-| 30 | queued | A | Comparison ladder (B0 baseline → B1 +CP-SAT → B2 +witness → SAMG) on 10 then 30 seeds; `RESULTS_BASELINE.md` | Measured tables, RQ1–RQ6 answered |
+| 29 | done | A | Warehouse scenarios W1–W6, `samg.experiments.run` / `.compare`, results + manifest | `c1be584` |
+| 30 | done | A | Comparison ladder (B0 baseline → B1 +CP-SAT → B2 +witness → SAMG, + cold start) on 30 seeds; `RESULTS_BASELINE.md` | RQ1–RQ6 answered (R16) |
 | 31 | partly done | A | Side-by-side **replay** page `/compare-replay` (new page; existing 3D views untouched), export script `scripts/export_compare_replays.py`. Remaining: Streamlit comparison tab (step 5); live side-by-side deferred | Page builds, lints, type-checks, serves; real data only |
+| 32 | proposed | A+B | SAMG admission control / batching: plan a feasible, priority-first subset when a wave exceeds fleet capacity, defer the rest (today CP-SAT needs every task assigned, so overload = nothing executes). Touches the twin's wave planning → needs user and Dev B sign-off (3D constraint) | W2 overload seeds no longer 0% |
+| 33 | proposed | A | Travel-aware allocation objective: add estimated A* travel time to CP-SAT's cost (the baseline's advantage under normal load) | W1 fulfilment gap to B0 closes |
 
 ## Results log
 
@@ -114,3 +116,13 @@ The queue is worked in order, top to bottom. Each finished item that produces a 
 - **Result:** `samg.baseline` runs the identical twin missions under a greedy centralized dispatcher that trusts authenticated claims. On the judge demo (robot failure + malicious robot), SAMG rejected 2/2 false completion claims, with 0 corrupted tasks and 4/4 orders truly fulfilled. The baseline accepted 2/2, so 1 task was believed done but never happened and 1 of 4 orders shipped incomplete. The twin's existing KPI counted that order as fulfilled for the baseline (completion rate 1.0 in both modes). On the clean preset the baseline was faster (average fulfilment 200 s vs 225 s, utilisation 0.33 vs 0.29), and it planned and ran in about 0.06 s against SAMG's 14.5 s.
 - **Significance:** the security difference is measured from genuine mechanisms. Both modes receive the same signed claims; only the verification differs. The baseline also wins on some performance metrics, so the comparison is not one-sided. The twin's order-completion KPI is optimistic whenever claims are trusted, so comparisons must use `orders_truly_fulfilled`.
 - **Architecture:** a new `samg.baseline` package composed from twin functions. Opt-in common random numbers were added to the simulator for paired comparisons. No twin, API or web change.
+
+### R16 — SAMG vs conventional baseline, 30 seeds × W1–W6 (items 29–30, D042)
+- **Result:** see `RESULTS_BASELINE.md`.
+  - The witness/evidence gate is the one large, significant benefit. Under a malicious robot (W5), B0 and B1 accept 2/2 false claims and truly fulfil 71.4% of orders; B2 and SAMG accept 0 and fulfil 100% (+28.6 points), at +11.8 s average fulfilment.
+  - Under normal load the greedy, travel-aware baseline is faster than every CP-SAT configuration (W1 +13.6 s) with equal completion.
+  - Adaptive topology selection adds almost nothing over a fixed controller star; the exception is +3.2 points under communication failure (W4).
+  - Under overload (W2), SAMG executes nothing on 15/30 seeds, because CP-SAT must assign every task of a wave and the fleet capacity is exceeded. The baseline completes all 30.
+  - Per-mission wall-clock: 0.06–0.17 s (B0) vs 1.2–5.0 s (SAMG).
+- **Significance:** high. This is the first measurement against a competent conventional control. It supports SAMG's security claim, and it refutes performance superiority under normal and overloaded conditions in this model.
+- **Architecture:** two proposed changes: admission control / batching in wave planning (item 32) and a travel-aware allocation objective (item 33). Neither is made, because item 32 touches the twin.

@@ -273,3 +273,15 @@ Extends D004. Details are in [SECURITY_MODEL.md](SECURITY_MODEL.md#offline-train
 - The simulator uses integer milliseconds, so the ACP's reward from witness `sim_time_ms` equals the ground-truth reward exactly when the witness is faithful.
 
 **Why:** `config/reward.yaml` names the ranges but not the edge cases (incomplete missions, which handoffs count, which budget is the denominator). Fixing them once keeps the protected reward and the evaluation oracle on identical arithmetic.
+
+## D036 — Attack configuration lives in `config/security_policy.yaml` (2026-11-15)
+
+**Decision:** An `attack:` section (compromised agent, preferred topology, inflation/deflation, corruption levels, freeze hash) is added to `config/security_policy.yaml`, exposed as the optional, untyped `SecurityPolicy.attack` field. Only `samg.evaluation.experiment_c` reads it (validated by `ExperimentCConfig`); the ACP never does. The attack is tuned on dev seeds only by a predeclared rule (least-chosen topology first, ascending magnitudes, stop at dev S1 shift ≥ 0.2) and then frozen by hash before the recorded run.
+
+**Why:** Experiment C must use a disclosed, frozen, deterministic attack (brief §12.5); keeping it out of the ACP's own policy fields prevents the validator from depending on attacker parameters.
+
+## D037 — Experiment C metric definitions (2026-11-15)
+
+**Decision:** "Admitted to learning": S1 = authenticated claim in an episode updated from the agent claim; S2 = CORROBORATED claim in an applied episode. "Incorrectly blocked": S1 = refused at authentication/freshness; S2 = final REJECTED, STALE, DUPLICATE or DISPUTED (PROVISIONAL counted separately). "Update from an unsupported report": applied reward differs from ground truth by more than 1e-6. Corruption level = fraction of attack-phase missions in a seeded, nested schedule. Follow-up evaluation uses frozen learners. Obsolete-epoch replay is tested by advancing the mission epoch.
+
+**Why:** The security table reports counts with denominators (brief §12.8); these definitions make the counts reproducible.

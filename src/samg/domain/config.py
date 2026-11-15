@@ -44,6 +44,11 @@ class SimulationModelConfig(SamgModel):
         default=True,
         description="Intermediate agents on a handoff path relay one message at a time (processed in plan order).",
     )
+    keyed_randomness: bool = Field(
+        default=True,
+        description="Common random numbers: draws are keyed by (seed, task) and (seed, prerequisite, task, hop) "
+        "instead of plan order, so two different plans for the same mission face the same luck.",
+    )
 
 
 V2_HOP_FAILURE_PROBABILITY = 0.05

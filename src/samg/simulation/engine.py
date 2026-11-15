@@ -56,6 +56,7 @@ reproduce the ground-truth metrics exactly.
 
 from __future__ import annotations
 
+import zlib
 from collections.abc import Collection, Mapping
 
 import numpy as np
@@ -77,6 +78,11 @@ MAX_HOP_ATTEMPTS = 3
 DEFAULT_DURATION_JITTER = 0.10
 
 S = TaskState
+
+
+def _keyed_rng(seed: int, *keys: str) -> np.random.Generator:
+    """Stable per-event generator (CRC32 of the keys; independent of plan order and Python hashing)."""
+    return np.random.default_rng([seed & 0xFFFFFFFF, *(zlib.crc32(k.encode("utf-8")) for k in keys)])
 
 
 def run(
@@ -111,10 +117,14 @@ def run(
 
     # Pre-draw a fixed block of randomness per task (in plan order) and per handoff
     # hop so that one branch's outcome never shifts another task's draws.
-    draws: dict[str, tuple[float, float]] = {a.task_id: (float(rng.random()), float(rng.random())) for a in order}
-    hop_draws: dict[tuple[str, str], np.ndarray] = {
-        key: rng.random((max(h.hops, 0), MAX_HOP_ATTEMPTS)) for key, h in sorted(handoff.items())
-    }
+    if costs.simulation_model is not None and costs.simulation_model.keyed_randomness:
+        # Common random numbers (opt-in): identical events get identical draws across plans.
+        draws = {a.task_id: tuple(float(x) for x in _keyed_rng(seed, a.task_id).random(2)) for a in order}
+        hop_draws = {key: _keyed_rng(seed, key[0], key[1]).random((max(h.hops, 0), MAX_HOP_ATTEMPTS))
+                     for key, h in sorted(handoff.items())}
+    else:
+        draws = {a.task_id: (float(rng.random()), float(rng.random())) for a in order}
+        hop_draws = {key: rng.random((max(h.hops, 0), MAX_HOP_ATTEMPTS)) for key, h in sorted(handoff.items())}
 
     transitions: list[tuple[int, int, TaskTransition]] = []  # (time, step, transition)
     step = 0

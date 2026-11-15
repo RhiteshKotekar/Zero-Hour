@@ -1,0 +1,7 @@
+# Conventional baseline dispatcher (D042). Declared once before any SAMG comparison; not tuned
+# against SAMG. score = queue_weight*ready/free wait + travel_weight*A* travel time + exec_weight*execution
+version: baseline-v1
+dispatcher:
+  queue_weight: 1.0
+  travel_weight: 1.0
+  exec_weight: 1.0

@@ -36,7 +36,7 @@ def test_neutral_v2_reproduces_v1_trace_exactly() -> None:
     """v2 machinery with every rule neutralised must equal v1 bit for bit (same draws, same order)."""
     scenario, graph, plan = _hierarchical()
     neutral = V1.model_copy(update={"simulation_model": SimulationModelConfig(
-        handoff_max_attempts=3, enforce_deadline=False, relay_queue=False)})
+        handoff_max_attempts=3, enforce_deadline=False, relay_queue=False, keyed_randomness=False)})
     for seed in (0, 1, 2):
         assert simulate(scenario, graph, plan, seed, V1) == simulate(scenario, graph, plan, seed, neutral)
 
@@ -94,3 +94,21 @@ def test_generator_default_is_unchanged_and_v2_deadline_is_tagged() -> None:
     assert v2.scenario_id != v1.scenario_id and v2.mission.mission_id != v1.mission.mission_id
     assert v2.mission.deadline_ms < v1.mission.deadline_ms
     assert v2.mission.tasks == v1.mission.tasks and v2.agents == v1.agents  # only the deadline differs
+
+
+def test_keyed_randomness_gives_equal_luck_across_plans() -> None:
+    """Common random numbers: a task's jitter does not depend on the rest of the plan."""
+    scenario = judge_scenario()
+    keyed = V1.model_copy(update={"simulation_model": SimulationModelConfig(
+        handoff_max_attempts=3, enforce_deadline=False, relay_queue=False, keyed_randomness=True)})
+    _, _, plans = feasible_topologies(scenario, keyed)
+    durations = {}
+    for topo, (graph, plan) in plans.items():
+        trace = simulate(scenario, graph, plan, 3, keyed)
+        planned = {a.task_id: a.end - a.start for a in plan.assignments}
+        durations[topo] = {o.task_id: round((o.end - o.start) / planned[o.task_id], 6)
+                           for o in trace.outcomes if o.completed and o.start is not None}
+    first, *rest = durations.values()
+    for other in rest:
+        shared = set(first) & set(other)
+        assert shared and all(abs(first[t] - other[t]) < 1e-5 for t in shared)  # same jitter (ms rounding)

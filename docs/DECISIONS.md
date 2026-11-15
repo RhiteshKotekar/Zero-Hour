@@ -285,3 +285,15 @@ Extends D004. Details are in [SECURITY_MODEL.md](SECURITY_MODEL.md#offline-train
 **Decision:** "Admitted to learning": S1 = authenticated claim in an episode updated from the agent claim; S2 = CORROBORATED claim in an applied episode. "Incorrectly blocked": S1 = refused at authentication/freshness; S2 = final REJECTED, STALE, DUPLICATE or DISPUTED (PROVISIONAL counted separately). "Update from an unsupported report": applied reward differs from ground truth by more than 1e-6. Corruption level = fraction of attack-phase missions in a seeded, nested schedule. Follow-up evaluation uses frozen learners. Obsolete-epoch replay is tested by advancing the mission epoch.
 
 **Why:** The security table reports counts with denominators (brief §12.8); these definitions make the counts reproducible.
+
+## D034 — Experiment A/B sample sizes, dev-tuning rule and freeze (2026-11-15)
+
+**Decision:** `config/experiment.yaml` uses n_dev 40, n_train 120, n_test 60 (chosen from runtime before any result). LinUCB `alpha` is chosen from the predeclared grid {0.1, 0.3, 0.5, 1.0} on the dev split only (20-mission learning stream, 20-mission frozen evaluation block; highest dev-eval mean, ties to the smaller alpha). The config is then frozen (`frozen: true`) with a `# config_hash` comment over experiment + topology-cost + allocation + reward configs; a unit test fails if any hashed config changes without a deliberate re-freeze. The held-out test is run once.
+
+**Why:** Brief §12.2 and §12.7: tune on dev only, freeze before test, never retune after seeing test results.
+
+## D035 — Ablations run on design seeds (2026-11-15)
+
+**Decision:** The §12.9 ablations rerun the full protocol on design seeds ≥ 60 000 with `alpha` kept frozen and P1 re-selected on each setting's own training data. The held-out test split is never used for ablations.
+
+**Why:** Keeps sensitivity analysis from leaking into, or being tuned on, the reported test set.

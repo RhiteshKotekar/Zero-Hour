@@ -16,7 +16,12 @@ const CommsView = dynamic(() => import("@/components/comms/CommsView"), {
   loading: () => <div className="grid h-full w-full place-items-center bg-bg cap">Loading comms view…</div>,
 });
 
-export function Stage({ className }: { className?: string }) {
+export interface StageProps {
+  className?: string;
+  bare?: boolean;
+}
+
+export function Stage({ className, bare }: StageProps) {
   const view = useStore((s) => s.view);
   const isPopoutActive = useStore((s) => s.isPopoutActive);
 
@@ -61,7 +66,7 @@ export function Stage({ className }: { className?: string }) {
         ) : view === "comms" ? (
           <CommsView />
         ) : (
-          <WarehouseView />
+          <WarehouseView bare={bare} />
         )}
       </div>
 

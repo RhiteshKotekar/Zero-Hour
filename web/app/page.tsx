@@ -5,17 +5,14 @@ import { useEffect, useState } from "react";
 import { useClockDriver, useStore } from "@/lib/store";
 import { useLiveConnection } from "@/lib/live";
 import { useDashboardPopoutTracker } from "@/lib/popoutSync";
-import { Header } from "@/components/panels/Header";
-import { ControlBar } from "@/components/panels/ControlBar";
-import { KpiStrip } from "@/components/panels/KpiStrip";
-import { RightRail } from "@/components/panels/RightRail";
-import { Stage } from "@/components/shell/Stage";
-import { BottomTabs } from "@/components/shell/BottomTabs";
+import { DemoDashboard } from "@/components/dashboard/DemoDashboard";
+import { DetailedDashboard } from "@/components/dashboard/DetailedDashboard";
 
 export default function Home() {
   useClockDriver(10);
   useDashboardPopoutTracker();
   const mode = useStore((s) => s.mode);
+  const dashboardMode = useStore((s) => s.dashboardMode);
   const [liveParam] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("live") === "1");
   useLiveConnection(liveParam || mode === "live");
 
@@ -35,15 +32,14 @@ export default function Home() {
   }, []);
 
   return (
-    <main className="flex h-screen min-h-[820px] flex-col gap-2.5 p-3.5 bg-bg">
-      <Header />
-      <ControlBar />
-      <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,67fr)_minmax(400px,33fr)] gap-2.5">
-        <Stage />
-        <RightRail />
-      </div>
-      <KpiStrip />
-      <BottomTabs className="flex-none" />
+    <main className="h-screen w-screen overflow-hidden bg-bg">
+      {dashboardMode === "detailed" ? (
+        <div className="flex h-full w-full min-h-[820px] flex-col p-3">
+          <DetailedDashboard />
+        </div>
+      ) : (
+        <DemoDashboard />
+      )}
     </main>
   );
 }

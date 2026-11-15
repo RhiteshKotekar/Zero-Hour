@@ -1,6 +1,6 @@
 # SAMG — Three-Person Implementation Plan
 
-Applies to: `github.com/RhiteshKotekar/Zero-Hour` (currently docs + empty package skeleton)
+Applies to: `github.com/RhiteshKotekar/Zero-Hour` (as of `591d490`, Phases 0–2 are implemented and the vertical-slice demo is on `main`; see [WORK_QUEUE.md](WORK_QUEUE.md))
 Spec of record: `SAMG_Shunya_Final_Hackathon_Build_Brief.md` (shared outside this repo; referred to as "the brief", section numbers as `§`)
 Build window: 24 hours, hour markers below are relative to kickoff (H0).
 Allocator: CP-SAT with the deterministic greedy fallback, for the MVP and for Experiments A–C (D003, D029). A neural allocator baseline (Luttmann & Xie, ICAPS 2024; [PAPER_ALIGNMENT.md](PAPER_ALIGNMENT.md), D022–D029) is **post-hackathon, optional and local-only**. It is not in any phase, gate or fallback rule below; see [Later: neural allocator baseline (local only)](#later-neural-allocator-baseline-local-only).
@@ -77,18 +77,20 @@ src/samg/
 tests/unit/ tests/contract/fixtures/ tests/integration/
 ```
 
-Public cross-owner interfaces (the only things the other side may import):
+Public cross-owner interfaces (the only things the other side may import). These are the **implemented** signatures at `591d490`. They replace the original `(mission, agents, …)` draft (D020: builders take a `Scenario`; D030: eligibility includes allocation feasibility; D031: span-of-control durations come from the plan).
 
 | Provider | Function | Used by |
 | --- | --- | --- |
-| A | `topology.build_graph(mission, agents, topology) -> CoordinationGraph \| Ineligible` | B (orchestration) |
-| A | `topology.eligible_topologies(mission, agents) -> list[TopologyName], dict[reason]` | B (policies) |
-| A | `context.extract_features(mission, agents) -> MissionContext` | B (policies) |
-| A | `allocation.allocate(mission, graph, availability, cfg) -> AllocationPlan` | B (orchestration) |
-| A | `simulation.run(mission, graph, plan, seed) -> ExecutionTrace` (task transitions + ground truth) | B (witness, reports) |
-| A | `simulation.reward.compute_reward(metrics, weights) -> RewardBreakdown` | B (ACP recomputes reward) |
-| B | `orchestration.run_single_mission(config, policy_mode, seed) -> MissionRunRecord` | A (runner, UI) |
-| B | `learning.make_policy(kind, cfg, seed)` for P0-H/F/D, P2, P3, S1 | A (runner) |
+| A | `topology.build_graph(scenario, topology, costs=None) -> (TopologyEligibility, CoordinationGraph \| None)` | B (orchestration) |
+| A | `topology.eligible_topologies(scenario, costs=None) -> (list[TopologyName], dict[TopologyName, TopologyEligibility])`, the structural check only | B (audit) |
+| A | `allocation.feasible_topologies(scenario, costs=None, config=None) -> (eligible, verdicts, {topology: (graph, plan)})`. This is the eligibility that policies are offered (D030) | B (orchestration), A (runner) |
+| A | `context.extract_features(scenario) -> MissionContext` (`features = (1, d, h, r, a)`, `ctx-v1`) | B (policies) |
+| A | `allocation.allocate(scenario, graph, costs=None, config=None) -> AllocationPlan` | B (orchestration) |
+| A | `simulation.run(scenario, graph, plan, seed, costs=None, *, duration_jitter=0.10, task_failure_probability=0.0, forced_failures=()) -> ExecutionTrace` (nominal durations taken from the plan, D031) | B (witness, reports) |
+| A | `simulation.compute_metrics(scenario, graph, plan, outcomes, costs) -> GroundTruthMetrics`; `simulation.compute_reward(metrics \| None, config, *, weights="base") -> RewardBreakdown` | B (ACP recomputes reward, D033) |
+| B | `orchestration.execute_mission(scenario, topology, settings, *, seed, decision_id, graph=None, plan=None, repo=None, mission_index=0, attack=None, forced_failures=()) -> MissionExecution`. It is policy-free, which makes it the basis for the runner's `MissionExecutor` | A (runner) |
+| B | `orchestration.run_single_mission(scenario, world, settings, *, seed, mission_index=0, attack=None, forced_failures=()) -> MissionRunRecord` | A (UI), CLI |
+| B | `learning.make_policy(kind, cfg, seed)` for `P0-H/F/D`, `P1`, `P2`, `P3`, `S1` | A (runner) |
 
 ## 3. Phase 0 — Contract freeze (H0–H2)
 

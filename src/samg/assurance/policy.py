@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -45,6 +45,10 @@ class SecurityPolicy(_Strict):
     freshness: FreshnessConfig
     corroboration: CorroborationConfig
     admission: AdmissionConfig
+    attack: dict[str, Any] | None = Field(
+        default=None,
+        description="Experiment C harness settings (samg.evaluation.experiment_c, D036). Never read by the ACP.",
+    )
 
     def allows(self, role: IdentityRole, event_type: EventType) -> bool:
         return event_type in self.roles.get(role, frozenset())

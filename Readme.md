@@ -13,7 +13,7 @@ Task allocation in the MVP and in all main experiments uses OR-Tools CP-SAT with
 
 SAMG does not control physical robots, drones, or live operational systems. All agents, reports, evidence, and adversaries are simulated.
 
-## Architecture at a glance
+## Architecture at a glance 
 
 ```text
 Scenario (MissionSpec + AgentProfiles + permitted links)

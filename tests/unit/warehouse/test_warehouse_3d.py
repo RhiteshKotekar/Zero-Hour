@@ -1,7 +1,12 @@
 """Unit tests for 3D Warehouse Digital Twin serialization and HTML generation."""
 
 import json
-from samg.domain import TopologyName
+
+import pytest
+
+pytest.importorskip("streamlit")  # view_warehouse_3d imports streamlit at module level
+
+from samg.domain import TopologyName  # noqa: E402
 from samg.dashboard.view_warehouse_3d import generate_3d_html, serialize_warehouse_scene
 from samg.warehouse.adapter import WarehouseSimulationRunner
 from samg.warehouse.agents import RobotStatus, WarehouseRobot

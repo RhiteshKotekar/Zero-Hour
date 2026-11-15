@@ -55,6 +55,17 @@ export function Header({ className }: HeaderProps) {
         <Link className="rounded-full px-3 py-1 text-ink2 transition-colors hover:bg-panel2 hover:text-ink" href="/compare">
           Compare
         </Link>
+        <Link
+          className="inline-flex items-center gap-1.5 rounded-full border border-[#b5dde6] bg-samg-bg px-3 py-1 text-samg transition-colors hover:border-samg hover:bg-white"
+          href="/compare-replay"
+          title="Side-by-side replay: SAMG vs conventional baseline on the identical mission"
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
+            <rect x="0.75" y="1.75" width="4.5" height="8.5" rx="1" fill="none" stroke="currentColor" strokeWidth="1.4" />
+            <rect x="6.75" y="1.75" width="4.5" height="8.5" rx="1" fill="none" stroke="currentColor" strokeWidth="1.4" />
+          </svg>
+          SAMG vs Baseline
+        </Link>
         <Link className="rounded-full px-3 py-1 text-ink2 transition-colors hover:bg-panel2 hover:text-ink" href="/replays">
           Replays
         </Link>

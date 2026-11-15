@@ -36,7 +36,7 @@ The queue is worked in order, top to bottom. Each finished item that produces a 
 | 28 | done | A | Conventional baseline core (`samg.baseline`, D042): greedy travel-aware dispatcher over the WMS controller star, claim-trusting execution, `run_mode(spec, mode, cfg, sim)` (no twin edits), opt-in common random numbers | Brief tests 1–6 + no-SAMG-mechanism guard pass; 407 tests; twin 3D state byte-identical (R15) |
 | 29 | queued | A | Warehouse scenarios W1–W6, `samg.experiments.run` / `.compare`, results + manifest | 10-seed comparison runs |
 | 30 | queued | A | Comparison ladder (B0 baseline → B1 +CP-SAT → B2 +witness → SAMG) on 10 then 30 seeds; `RESULTS_BASELINE.md` | Measured tables, RQ1–RQ6 answered |
-| 31 | queued | A+B | Streamlit comparison tab, then web mode selector and side-by-side 3D | Real data only |
+| 31 | partly done | A | Side-by-side **replay** page `/compare-replay` (new page; existing 3D views untouched), export script `scripts/export_compare_replays.py`. Remaining: Streamlit comparison tab (step 5); live side-by-side deferred | Page builds, lints, type-checks, serves; real data only |
 
 ## Results log
 

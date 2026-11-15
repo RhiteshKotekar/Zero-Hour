@@ -154,3 +154,25 @@ dashboard falls back to `data._DashboardExecutor`, a 10-line adapter that maps `
 
 Tests: `pytest tests/unit/dashboard` (AppTest render, mission run, reset; helper consistency against the
 records). They skip if Streamlit is not installed.
+
+## Side-by-side replay: SAMG vs conventional baseline (D042)
+
+A separate web page, `/compare-replay`, plays SAMG and the conventional baseline next to each other on the identical recorded mission: same seed, orders, robots, layout and fault injections. Both 3D scenes run off one replay clock. The existing control-center views are not changed.
+
+```bash
+python scripts/export_compare_replays.py              # writes web/public/replays/compare/* (all twin presets)
+python scripts/export_compare_replays.py --model v2   # same, under mission model v2 (D041) for both modes
+cd web && npm run dev                                  # then open http://localhost:3000/compare-replay
+```
+
+What it shows:
+- **Capability chips per side:** coordination, topology selection, allocator, LinUCB, witness and evidence gate, active or disabled.
+- **The two 3D scenes.**
+- **A measured table:** orders truly fulfilled, orders shipped incomplete, false claims accepted, tasks believed done but not done, fulfilment, latency, makespan, utilisation, travel, congestion, failures, retransmissions, hops and re-plans, with a manifest (seed, faults, model, git commit).
+
+Every number comes from the exported files. One seed is an illustration; multi-seed results come from the W1–W6 comparison.
+
+Example (judge demo, seed 11, robot failure plus malicious robot, model v1):
+- SAMG fulfilled 4/4 orders and rejected 2/2 false completion claims.
+- The baseline accepted 2/2, believed 1 task done that never happened, and shipped 1 of 4 orders incomplete.
+- The baseline's average fulfilment was faster (282 s vs 389 s), because SAMG re-plans the work the rejected claim covered.

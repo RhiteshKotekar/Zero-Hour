@@ -1,0 +1,115 @@
+{
+ "manifest": {
+  "preset": "judge_demo",
+  "label": "Judge demo: congestion, robot failure, malicious report",
+  "seed": 11,
+  "injections": [
+   "Robot failure: auto:TRANSPORT",
+   "Malicious report: auto:PICK"
+  ],
+  "model": "v1",
+  "git_commit": "133cb277a823c635094222c4d14567a508da9c5b",
+  "generated_at": "2026-11-15T08:34:06+00:00",
+  "python": "3.12.10",
+  "platform": "Windows-11-10.0.26200-SP0"
+ },
+ "capabilities": {
+  "samg": {
+   "coordination": "Secure adaptive mission graph",
+   "topology_selection": "LinUCB (adaptive)",
+   "allocator": "CP-SAT",
+   "witness": true,
+   "evidence_gate": true,
+   "learning": true
+  },
+  "baseline": {
+   "coordination": "Centralized greedy dispatcher",
+   "topology_selection": "None (fixed controller star)",
+   "allocator": "Greedy (travel + queue + execution)",
+   "witness": false,
+   "evidence_gate": false,
+   "learning": false
+  }
+ },
+ "metrics": {
+  "samg": {
+   "orders_total": 4,
+   "orders_dispatched": 4,
+   "order_completion_rate": 1.0,
+   "on_time": 2,
+   "avg_fulfilment_s": 389.356,
+   "avg_task_latency_s": 42.312,
+   "robot_utilization": 0.1981,
+   "travel_m": 472.9,
+   "congestion_s": 30.7,
+   "congestion_events": 2,
+   "task_failures": 2,
+   "unverified_tasks": 0,
+   "security_violations": 2,
+   "reward_last": 0.8973,
+   "rewards": [
+    0.5087,
+    0.8973
+   ],
+   "makespan_s": 448.98,
+   "topologies": [
+    "HIERARCHICAL",
+    "HIERARCHICAL"
+   ],
+   "replans": 1,
+   "mode": "samg",
+   "tasks_total": 20,
+   "tasks_truly_completed": 20,
+   "tasks_believed_completed": 20,
+   "corrupted_tasks": 0,
+   "orders_truly_fulfilled": 4,
+   "orders_shipped_incomplete": 0,
+   "handoff_hops": 38,
+   "retransmissions": 1,
+   "claims": 46,
+   "claims_accepted": 134,
+   "false_claims": 2,
+   "false_claims_accepted": 0,
+   "false_claims_rejected": 2,
+   "coordination": "SECURE ADAPTIVE MISSION GRAPH"
+  },
+  "baseline": {
+   "orders_total": 4,
+   "orders_dispatched": 4,
+   "order_completion_rate": 1.0,
+   "on_time": 4,
+   "avg_fulfilment_s": 282.277,
+   "avg_task_latency_s": 24.707,
+   "robot_utilization": 0.2267,
+   "travel_m": 433.0,
+   "congestion_s": 0.8,
+   "congestion_events": 1,
+   "task_failures": 2,
+   "unverified_tasks": 1,
+   "security_violations": 0,
+   "reward_last": null,
+   "rewards": [],
+   "makespan_s": 343.801,
+   "topologies": [
+    "HIERARCHICAL",
+    "HIERARCHICAL"
+   ],
+   "replans": 1,
+   "mode": "baseline",
+   "tasks_total": 20,
+   "tasks_truly_completed": 19,
+   "tasks_believed_completed": 20,
+   "corrupted_tasks": 1,
+   "orders_truly_fulfilled": 3,
+   "orders_shipped_incomplete": 1,
+   "handoff_hops": 38,
+   "retransmissions": 1,
+   "claims": 43,
+   "claims_accepted": 43,
+   "false_claims": 2,
+   "false_claims_accepted": 2,
+   "false_claims_rejected": 0,
+   "coordination": "CENTRALIZED GREEDY"
+  }
+ }
+}

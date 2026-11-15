@@ -1,0 +1,109 @@
+{
+ "manifest": {
+  "preset": "rush",
+  "label": "Rush: generated order stream (synthetic demand)",
+  "seed": 11,
+  "injections": [],
+  "model": "v1",
+  "git_commit": "133cb277a823c635094222c4d14567a508da9c5b",
+  "generated_at": "2026-11-15T08:34:07+00:00",
+  "python": "3.12.10",
+  "platform": "Windows-11-10.0.26200-SP0"
+ },
+ "capabilities": {
+  "samg": {
+   "coordination": "Secure adaptive mission graph",
+   "topology_selection": "LinUCB (adaptive)",
+   "allocator": "CP-SAT",
+   "witness": true,
+   "evidence_gate": true,
+   "learning": true
+  },
+  "baseline": {
+   "coordination": "Centralized greedy dispatcher",
+   "topology_selection": "None (fixed controller star)",
+   "allocator": "Greedy (travel + queue + execution)",
+   "witness": false,
+   "evidence_gate": false,
+   "learning": false
+  }
+ },
+ "metrics": {
+  "samg": {
+   "orders_total": 4,
+   "orders_dispatched": 4,
+   "order_completion_rate": 1.0,
+   "on_time": 4,
+   "avg_fulfilment_s": 224.902,
+   "avg_task_latency_s": 18.041,
+   "robot_utilization": 0.2919,
+   "travel_m": 415.0,
+   "congestion_s": 30.7,
+   "congestion_events": 2,
+   "task_failures": 0,
+   "unverified_tasks": 0,
+   "security_violations": 0,
+   "reward_last": 0.8618,
+   "rewards": [
+    0.8618
+   ],
+   "makespan_s": 279.173,
+   "topologies": [
+    "HIERARCHICAL"
+   ],
+   "replans": 0,
+   "mode": "samg",
+   "tasks_total": 20,
+   "tasks_truly_completed": 20,
+   "tasks_believed_completed": 20,
+   "corrupted_tasks": 0,
+   "orders_truly_fulfilled": 4,
+   "orders_shipped_incomplete": 0,
+   "handoff_hops": 26,
+   "retransmissions": 1,
+   "claims": 41,
+   "claims_accepted": 101,
+   "false_claims": 0,
+   "false_claims_accepted": 0,
+   "false_claims_rejected": 0,
+   "coordination": "SECURE ADAPTIVE MISSION GRAPH"
+  },
+  "baseline": {
+   "orders_total": 4,
+   "orders_dispatched": 4,
+   "order_completion_rate": 1.0,
+   "on_time": 4,
+   "avg_fulfilment_s": 200.162,
+   "avg_task_latency_s": 13.989,
+   "robot_utilization": 0.3269,
+   "travel_m": 408.0,
+   "congestion_s": 0.8,
+   "congestion_events": 1,
+   "task_failures": 0,
+   "unverified_tasks": 0,
+   "security_violations": 0,
+   "reward_last": null,
+   "rewards": [],
+   "makespan_s": 231.392,
+   "topologies": [
+    "HIERARCHICAL"
+   ],
+   "replans": 0,
+   "mode": "baseline",
+   "tasks_total": 20,
+   "tasks_truly_completed": 20,
+   "tasks_believed_completed": 20,
+   "corrupted_tasks": 0,
+   "orders_truly_fulfilled": 4,
+   "orders_shipped_incomplete": 0,
+   "handoff_hops": 28,
+   "retransmissions": 1,
+   "claims": 41,
+   "claims_accepted": 41,
+   "false_claims": 0,
+   "false_claims_accepted": 0,
+   "false_claims_rejected": 0,
+   "coordination": "CENTRALIZED GREEDY"
+  }
+ }
+}

@@ -1,0 +1,26 @@
+{
+ "model": "v1",
+ "presets": [
+  {
+   "preset": "clean",
+   "label": "Clean operations",
+   "seed": 11,
+   "injections": []
+  },
+  {
+   "preset": "judge_demo",
+   "label": "Judge demo: congestion, robot failure, malicious report",
+   "seed": 11,
+   "injections": [
+    "Robot failure: auto:TRANSPORT",
+    "Malicious report: auto:PICK"
+   ]
+  },
+  {
+   "preset": "rush",
+   "label": "Rush: generated order stream (synthetic demand)",
+   "seed": 11,
+   "injections": []
+  }
+ ]
+}

@@ -1,0 +1,185 @@
+# Warehouse Digital Twin Configuration for SAMG
+version: "warehouse-v1"
+
+dimensions:
+  width: 30
+  height: 20
+  cell_size_m: 1.5
+
+zones:
+  receiving:
+    bounds: [0, 4, 0, 4] # [x_min, x_max, y_min, y_max]
+    label: "Receiving Zone"
+    color: "#2C3E50"
+  storage:
+    bounds: [5, 24, 2, 17]
+    label: "Storage Racks"
+    color: "#34495E"
+  picking_stations:
+    stations:
+      - id: "PICK-01"
+        pos: [4, 5]
+        label: "Pick Station 1"
+      - id: "PICK-02"
+        pos: [4, 10]
+        label: "Pick Station 2"
+      - id: "PICK-03"
+        pos: [4, 15]
+        label: "Pick Station 3"
+  packing_stations:
+    stations:
+      - id: "PACK-01"
+        pos: [25, 5]
+        label: "Pack Station 1"
+      - id: "PACK-02"
+        pos: [25, 10]
+        label: "Pack Station 2"
+      - id: "PACK-03"
+        pos: [25, 15]
+        label: "Pack Station 3"
+  staging:
+    bounds: [26, 29, 2, 8]
+    label: "Order Staging"
+    color: "#1B4F72"
+  dispatch:
+    bounds: [26, 29, 11, 18]
+    label: "Dispatch Dock"
+    color: "#145A32"
+
+racks:
+  # 4 rack blocks with aisle channels
+  # Block 1 (Aisles A1-A2)
+  - id: "RACK-A01"
+    bounds: [7, 8, 3, 7]
+    aisle: "A1"
+  - id: "RACK-A02"
+    bounds: [10, 11, 3, 7]
+    aisle: "A1"
+  - id: "RACK-A03"
+    bounds: [14, 15, 3, 7]
+    aisle: "A2"
+  - id: "RACK-A04"
+    bounds: [17, 18, 3, 7]
+    aisle: "A2"
+  - id: "RACK-A05"
+    bounds: [21, 22, 3, 7]
+    aisle: "A3"
+
+  # Block 2 (Aisles B1-B3)
+  - id: "RACK-B01"
+    bounds: [7, 8, 12, 16]
+    aisle: "B1"
+  - id: "RACK-B02"
+    bounds: [10, 11, 12, 16]
+    aisle: "B1"
+  - id: "RACK-B03"
+    bounds: [14, 15, 12, 16]
+    aisle: "B2"
+  - id: "RACK-B04"
+    bounds: [17, 18, 12, 16]
+    aisle: "B2"
+  - id: "RACK-B05"
+    bounds: [21, 22, 12, 16]
+    aisle: "B3"
+
+aisles:
+  # Cross aisles (horizontal transit)
+  cross_aisles: [2, 8, 9, 10, 11, 17]
+  # Main vertical aisles (picking & shelf access)
+  main_aisles: [5, 6, 9, 12, 13, 16, 19, 20, 23, 24]
+  bottlenecks:
+    - aisle: "B1-Central"
+      cells: [[9, 12], [9, 13], [9, 14], [9, 15], [9, 16]]
+      capacity: 1 # Only 1 AMR at a time -> causes queuing
+      label: "Narrow Aisle B1"
+    - aisle: "Cross-Main"
+      cells: [[12, 9], [13, 9], [14, 9], [15, 9]]
+      capacity: 1
+      label: "Central Intersection"
+
+robots:
+  # Heterogeneous robot fleet mapped to SAMG AgentProfile
+  - id: "R01"
+    samg_agent_id: "A0"
+    name: "Fleet Coordinator"
+    role: "lead"
+    capabilities: ["approval", "prioritisation", "supervision"]
+    capacity: 0
+    budget: 0.0
+    home: [2, 2]
+    speed: 1.0
+    battery: 100.0
+    can_coordinate: true
+    is_mission_lead: true
+    color: "#E74C3C"
+
+  - id: "R02"
+    samg_agent_id: "A1"
+    name: "Inspection / Survey AMR"
+    role: "inspection"
+    capabilities: ["inspection", "survey"]
+    capacity: 3
+    budget: 6.0
+    home: [4, 4]
+    speed: 1.2
+    battery: 95.0
+    can_coordinate: false
+    color: "#3498DB"
+
+  - id: "R03"
+    samg_agent_id: "A2"
+    name: "Heavy Transport AMR"
+    role: "transport"
+    capabilities: ["recovery", "transport"]
+    capacity: 3
+    budget: 12.0
+    home: [4, 8]
+    speed: 0.9
+    battery: 90.0
+    can_coordinate: false
+    color: "#2ECC71"
+
+  - id: "R04"
+    samg_agent_id: "A3"
+    name: "Agile Transport AMR"
+    role: "transport"
+    capabilities: ["inspection", "transport"]
+    capacity: 3
+    budget: 10.0
+    home: [4, 12]
+    speed: 1.1
+    battery: 92.0
+    can_coordinate: false
+    color: "#1ABC9C"
+
+  - id: "R05"
+    samg_agent_id: "A4"
+    name: "Maintenance & Diagnostics AMR"
+    role: "maintenance"
+    capabilities: ["diagnostics", "repair", "verification"]
+    capacity: 4
+    budget: 12.0
+    home: [4, 16]
+    speed: 1.0
+    battery: 88.0
+    can_coordinate: true
+    color: "#F39C12"
+
+  - id: "R06"
+    samg_agent_id: "A5"
+    name: "Fulfillment & Sorting AMR"
+    role: "logistics"
+    capabilities: ["inventory", "resource_coordination"]
+    capacity: 2
+    budget: 8.0
+    home: [25, 2]
+    speed: 1.0
+    battery: 94.0
+    can_coordinate: true
+    color: "#9B59B6"
+
+simulation:
+  time_step_s: 0.5
+  congestion_penalty_s: 4.0
+  recharge_rate_per_s: 0.2
+

@@ -204,7 +204,8 @@ def main(argv: list[str] | None = None) -> int:
                              "execution_s": round(executor.timing_s["execution"], 1),
                              "allocation_calls": executor.calls["allocation"],
                              "execution_calls": executor.calls["execution"]}
-        (args.out / "experiment_a.json").write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
+        (args.out / "experiment_a.json").write_text(result.model_dump_json(indent=2), encoding="utf-8")
+        (args.out / "summary_experiment_a.json").write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
         write_records_csv(result, args.out / "experiment_a_records.csv")
         for row in result.table():
             _say(f"  {row}")

@@ -198,14 +198,19 @@ def main(argv: list[str] | None = None) -> int:
                                   extra_hash_configs=(settings.allocation, settings.reward), progress=_say)
         if result.config_hash != frozen_hash:
             raise SystemExit(f"config hash drift: {result.config_hash} != {frozen_hash}")
+        # Full machine-readable artifact: the complete ExperimentResult for the
+        # dashboard and any downstream tool that needs the original model.
+        (args.out / "experiment_a.json").write_text(
+            result.model_dump_json(indent=2), encoding="utf-8")
+        # Human-readable summary (tables, runtime, comparisons).
         data = summary_json(result)
         data["runtime_s"] = {"experiment": round(time.perf_counter() - t0, 1),
                              "allocation_s": round(executor.timing_s["allocation"], 1),
                              "execution_s": round(executor.timing_s["execution"], 1),
                              "allocation_calls": executor.calls["allocation"],
                              "execution_calls": executor.calls["execution"]}
-        (args.out / "experiment_a.json").write_text(result.model_dump_json(indent=2), encoding="utf-8")
-        (args.out / "summary_experiment_a.json").write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
+        (args.out / "experiment_a_summary.json").write_text(
+            json.dumps(data, indent=2, default=str), encoding="utf-8")
         write_records_csv(result, args.out / "experiment_a_records.csv")
         for row in result.table():
             _say(f"  {row}")

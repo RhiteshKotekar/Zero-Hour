@@ -176,3 +176,36 @@ Example (judge demo, seed 11, robot failure plus malicious robot, model v1):
 - SAMG fulfilled 4/4 orders and rejected 2/2 false completion claims.
 - The baseline accepted 2/2, believed 1 task done that never happened, and shipped 1 of 4 orders incomplete.
 - The baseline's average fulfilment was faster (282 s vs 389 s), because SAMG re-plans the work the rejected claim covered.
+
+## Multi-seed comparison: W1–W6 and the comparison ladder (D042)
+
+```bash
+python -m samg.experiments.run --mode baseline --scenario W5 --seed 1001      # one run, standardized JSON
+python -m samg.experiments.run --mode samg     --scenario W5 --seed 1001
+python -m samg.experiments.run --rung B1       --scenario W3 --seed 1004      # any ladder rung
+python -m samg.experiments.compare --scenarios W1 W5 --seeds 1001 1002 1003   # quick
+python -m samg.experiments.compare --all --n-seeds 30 --doc docs/RESULTS_BASELINE.md   # full, ~15 min
+streamlit run src/samg/dashboard/app.py                                      # tab "SAMG vs Baseline"
+```
+
+**Scenarios:**
+- W1 normal;
+- W2 high congestion;
+- W3 robot failure;
+- W4 communication failure;
+- W5 malicious agent;
+- W6 mixed stress.
+
+Each seed gets its own seeded order book. Every rung uses mission model v2 with common random numbers.
+
+**Ladder (each rung adds one mechanism):**
+- **B0:** the conventional baseline;
+- **B1:** + CP-SAT optimiser;
+- **B2:** + witness and evidence gate (SAMG pipeline with a fixed controller star);
+- **SAMG:** + adaptive topology selection (warm start);
+- **SAMG-cold:** the same with no pre-training.
+
+**Outputs:**
+- Every run lands in `artifacts/experiments/baseline/<name>/` (`results.json` with manifest, rows and summary; `rows.csv`).
+- `--doc` writes the measured tables to Markdown.
+- Evaluation seeds start at 1001 and are refused if they overlap the twin's training seeds.

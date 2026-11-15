@@ -25,6 +25,7 @@ from dataclasses import replace
 from datetime import timedelta
 from typing import Any
 
+from samg.allocation import allocate
 from samg.allocation.common import AllocationProblem
 from samg.baseline.dispatcher import BASELINE_VERSION, DispatchWeights, dispatch
 from samg.context import extract_features
@@ -67,7 +68,7 @@ MODES = ("samg", "baseline")
 def run_wave_baseline(env: WarehouseEnv, wtasks: dict[str, Any], task_ids: list[str], *, done: frozenset[str],
                       number: int, mission_id: str, mission_index: int, seed: int, states: dict[str, Any],
                       locks: AisleLocks, t_offset: float, injections: tuple, excluded: frozenset[str],
-                      weights: DispatchWeights) -> tuple[Wave, dict[str, Any]]:
+                      weights: DispatchWeights, planner: str = "greedy") -> tuple[Wave, dict[str, Any]]:
     tasks = [wtasks[t] for t in task_ids]
     scenario = env.scenario(mission_id, tasks, done=done, seed=seed, unavailable=excluded, wave=number)
     verdict, graph = build_graph(scenario, STAR, env.settings.costs)
@@ -90,8 +91,16 @@ def run_wave_baseline(env: WarehouseEnv, wtasks: dict[str, Any], task_ids: list[
                      task_ids=list(task_ids), record=rec, replay=None, injections_applied=[], physical_passes=0,
                      delays_ms={}, verified={}, failing_robots=frozenset(), excluded_robots=excluded), info)
 
-    problem = AllocationProblem(scenario, graph, env.settings.costs, env.settings.allocation)
-    plan = dispatch(problem, env, wtasks, states, weights)
+    if planner == "cpsat":  # ladder rung B1: SAMG's optimiser over the same star, still trusting claims
+        plan = allocate(scenario, graph, env.settings.costs, env.settings.allocation)
+    else:
+        plan = dispatch(AllocationProblem(scenario, graph, env.settings.costs, env.settings.allocation),
+                        env, wtasks, states, weights)
+    if not plan.feasible:  # CP-SAT (rung B1) found no plan: like SAMG's twin path, the wave does not execute
+        rec = MissionRunRecord(**base, graph=graph, plan=plan)
+        return (Wave(number=number, mission_id=mission_id, mission_index=mission_index, t_offset=t_offset,
+                     task_ids=list(task_ids), record=rec, replay=None, injections_applied=[], physical_passes=0,
+                     delays_ms={}, verified={}, failing_robots=frozenset(), excluded_robots=excluded), info)
     forced, failing, breakdowns, delays, attack, applied = _resolve_injections(injections, plan, wtasks,
                                                                                mission_index, STAR)
     forced = set(forced)
@@ -189,7 +198,7 @@ def run_warehouse_samg(spec: RunSpec, cfg: dict[str, Any] | None = None,
 
 def run_warehouse_baseline(spec: RunSpec, cfg: dict[str, Any] | None = None,
                            weights: DispatchWeights | None = None,
-                           sim: SimulationModelConfig | None = None) -> WarehouseRun:
+                           sim: SimulationModelConfig | None = None, planner: str = "greedy") -> WarehouseRun:
     """The baseline counterpart of ``twin.adapter.run_warehouse`` for the identical ``RunSpec``."""
     cfg = cfg or load_config()
     weights = weights or DispatchWeights.load()
@@ -214,7 +223,7 @@ def run_warehouse_baseline(spec: RunSpec, cfg: dict[str, Any] | None = None,
                                        mission_id=f"{prefix}-{number}", mission_index=number - 1,
                                        seed=spec.seed + number - 1, states=states, locks=locks, t_offset=t_offset,
                                        injections=spec.injections if number == 1 else (), excluded=excluded,
-                                       weights=weights)
+                                       weights=weights, planner=planner)
         waves.append(wave)
         infos.append(info)
         if wave.replay is None:
@@ -230,7 +239,7 @@ def run_warehouse_baseline(spec: RunSpec, cfg: dict[str, Any] | None = None,
     return WarehouseRun(spec=spec, env=env, orders=orders, holds=holds, tasks=wtasks, waves=waves,
                         initial_states=start, final_states=states, policy_kind=BASELINE_KIND, experience=0,
                         policy_state_before=empty, policy_state_after=empty,
-                        extra={"mode": "baseline", "baseline_waves": infos,
+                        extra={"mode": "baseline", "planner": planner, "baseline_waves": infos,
                                "dispatch_weights": weights.__dict__})
 
 

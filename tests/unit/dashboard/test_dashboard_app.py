@@ -23,8 +23,9 @@ def _app() -> AppTest:
 
 def test_app_renders_tabs() -> None:
     at = _app()
-    assert len(at.tabs) == 4
+    assert len(at.tabs) == 5
     tab_labels = [t.label for t in at.tabs]
+    assert "SAMG vs Baseline" in tab_labels
     assert "Warehouse Digital Twin" in tab_labels
     assert "Mission Control" in tab_labels
 
